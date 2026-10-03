@@ -1,0 +1,265 @@
+# =============================================================================
+# FINAL PREPROCESSING CONFIGURATION FOR 363-FILE CETACEAN WHISTLE REPRODUCTION
+# =============================================================================
+#
+# Target Research Paper:
+#   G.-H. Park, H.-S. Jeon, J.-H. Baek, S. Huh, and H.-S. Cho,
+#   "A Generative Model for Cetacean Whistles Using Variational Autoencoder and Mixture of Gaussians,"
+#   IEEE Access, vol. 14, pp. 27877-27896, 2026.
+#
+# Dataset Scope:
+#   Authoritative Local Source: NOAA DCLDE 2022 Cruise 1705, Encounter 191 (363 FLAC files)
+#   Total Raw Audio: 363 files x 6 channels x 60.0 s = 36.3 hours of single-channel audio
+#
+# Lineage Taxonomy:
+#   [PAPER-SPECIFIED]        : Stated directly in paper text, tables, figures, or captions
+#   [DERIVED FROM PAPER]     : Acoustically/mathematically mandated by explicit paper parameters
+#   [SOURCE-VERIFIED]        : Verified against authoritative external source material
+#   [NOT SPECIFIED BY PAPER] : The paper is completely silent on this parameter/operation
+#   [IMPLEMENTATION REQUIRED]: Concrete engineering choice required to execute on a computer
+#   [ENGINEERING SUBSTITUTION]: Stand-in replacing an unreproducible author component
+# =============================================================================
+
+pipeline_name: "paper_reproduction_363"
+version: "2.0.0-final"
+
+# -----------------------------------------------------------------------------
+# INPUT AUDIO SPECIFICATIONS
+# -----------------------------------------------------------------------------
+input:
+  # [SOURCE-VERIFIED] Local raw dataset directory
+  flac_dir: "d:/ALL/whistles/encounter_191_audio"
+  manifest_path: "manifest_363.csv"
+  file_format: "FLAC"                    # [SOURCE-VERIFIED] Raw format
+  expected_input_count: 363              # [SOURCE-VERIFIED] Total local dataset count
+  expected_fs: 500000                    # [PAPER-SPECIFIED] Sec. II.C (500 kHz)
+  expected_channels: 6                   # [PAPER-SPECIFIED] Sec. II.C (six hydrophones)
+  expected_frames: 30000000              # [PAPER-SPECIFIED] Sec. II.C (~60 s nominal)
+  expected_duration_s: 60.0              # [PAPER-SPECIFIED] Sec. II.C
+  dtype: "int16"                         # [SOURCE-VERIFIED] PCM-16 encoding
+
+# -----------------------------------------------------------------------------
+# STAGE 1: RESAMPLING & HIGH-PASS FILTERING
+# -----------------------------------------------------------------------------
+resample:
+  # [PAPER-SPECIFIED] Sec. II.C ("resampling the signal to 192 kHz")
+  fs_out: 192000
+  # Q2 FINAL DECISION: keep 48/125. 192 kHz target = PAPER FACT;
+  # resample_poly method itself = H1 ENGINEERING ASSUMPTION (paper silent).
+  polyphase_up: 48
+  polyphase_down: 125
+  method: "polyphase_fir"                # H1 (was mislabeled if ever called paper-exact)
+
+highpass:
+  # [PAPER-SPECIFIED] Sec. II.C ("passband above 2 kHz") — 2 kHz intent ONLY.
+  # Q2 FINAL DECISION: keep implementation, relabel provenance:
+  #   Butterworth-4, 1791.4389 Hz design cutoff, sosfiltfilt zero-phase = ALL H1.
+  passband_edge_hz: 2000.0
+  # [NOT SPECIFIED BY PAPER] Filter family and order are silent in paper
+  filter_family: "butterworth"           # H1
+  order: 4                               # H1
+  zero_phase: true                       # H1 (forward-backward filtering)
+  # [IMPLEMENTATION REQUIRED] Design cutoff realization:
+  # To achieve exactly -3.01 dB at 2000 Hz under zero-phase squaring (|H|^4):
+  # f_design = 2000.0 * (10^(3.0103 / (20 * 4)) - 1)^(1 / (2 * 4)) = 1791.439 Hz
+  # NOTE: 1791.439 Hz is an IMPLEMENTATION REALIZATION, NOT a paper parameter!
+  f_design_hz: 1791.4389
+
+# -----------------------------------------------------------------------------
+# STAGE 2: STFT #1 (INITIAL TIME-FREQUENCY SPECTROGRAM)
+# -----------------------------------------------------------------------------
+stft1:
+  # [PAPER-SPECIFIED] Sec. II.C ("2,048-point Hamming window")
+  nfft: 2048
+  window: "hamming"                      # [PAPER-SPECIFIED] Sec. II.C
+  # [PAPER-SPECIFIED] Sec. II.C ("using a 50% overlap")
+  overlap_ratio: 0.50
+  # [DERIVED FROM PAPER] Hop = 2048 * (1 - 0.50) = 1024 samples
+  hop: 1024
+  # [DERIVED FROM PAPER] Frequency bin spacing = 192,000 / 2,048 = 93.75 Hz
+  bin_hz: 93.75
+  # [DERIVED FROM PAPER] Temporal frame period = 1024 / 192,000 s = 5.333 ms
+  hop_s: 0.005333333333333333
+
+# -----------------------------------------------------------------------------
+# STAGE 3: WHISTLE CONTOUR DETECTION
+# -----------------------------------------------------------------------------
+detector:
+  # [PAPER-SPECIFIED METHOD]: Neural network [31] + MCA-CFAR post-processing [32],[33]
+  # STATUS: UNREPRODUCIBLE (References [31]-[33] are 2-page Korean conference abstracts;
+  #         weights, code, and training sets are unpublished).
+  # [ENGINEERING SUBSTITUTION]: Classical Ridge Tracker stand-in with sub-bin parabolic
+  #                             interpolation and local contrast thresholding.
+  type: "classical_ridge_tracker_standin"
+  status: "[ENGINEERING SUBSTITUTION]"
+  paper_method_reference: "G.-H. Park et al. (2026), Sec. II.C, Refs [31]-[33]"
+  
+  # Q3 FINAL DECISION: H1 DETECTOR / REPRODUCTION SURROGATE. KEEP as-is.
+  # 2-20 kHz band, 4 dB, gap 2, parabolic = H1 assumptions, NOT paper facts.
+  # Stand-in tracker tuning parameters:
+  freq_min_hz: 2000.0                    # H1 (aligned with high-pass edge)
+  freq_max_hz: 20000.0                   # H1 (odontocete whistle range assumption)
+  min_contrast_db: 4.0                   # H1 stand-in ridge sensitivity
+  max_gap_frames: 2                      # H1 max bridgeable frame gap
+  background_normalization: "per_bin_median" # H1 stand-in normalization
+
+# -----------------------------------------------------------------------------
+# STAGE 4: CONTOUR POST-PROCESSING
+# -----------------------------------------------------------------------------
+postprocess:
+  # [NOT SPECIFIED BY PAPER] Minimum whistle duration threshold
+  # 10 frames = 10 * 5.333 ms = 53.33 ms. Required to filter transient impulse clicks.
+  # Q3 FINAL DECISION: min 10 frames = H1; reject_harmonics false = H1.
+  min_duration_frames: 10                # H1 (was IMPLEMENTATION REQUIRED)
+  min_duration_s: 0.05333333333333333    # H1
+  
+  # [NOT SPECIFIED BY PAPER] Harmonic rejection
+  # DEFAULT PAPER REPRODUCTION: false (paper does not describe harmonic rejection).
+  reject_harmonics: false                # [NOT SPECIFIED BY PAPER] Disabled in default path
+
+# -----------------------------------------------------------------------------
+# STAGE 5: CHANNEL HANDLING & DEDUPLICATION
+# -----------------------------------------------------------------------------
+channel_handling:
+  # Q1 FINAL DECISION (2026-10-03) + PERF OPTIMIZATION: use ONLY channel 0.
+  # PAPER FACT: reproduction pipeline uses the first hydrophone/channel (channel 0).
+  # Source files are validated as 6-channel recordings (Sec. II.C); channels 1-5 are
+  # ignored after validation (not concatenated, averaged, beamformed, or deduplicated).
+  # Stage 1 selects audio[:, 0] immediately after validation and resamples/filters
+  # channel 0 ONLY.
+  policy: "single_channel_0"              # Q1: was "preserve_all_channels"
+  channel_index: 0                       # Q1: ONLY channel processed
+  expected_source_channels: 6            # PAPER FACT: validation still expects 6ch source
+  
+dedup:
+  # [NOT SPECIFIED BY PAPER] The paper does NOT mention cross-channel deduplication.
+  # In default paper reproduction, deduplication is OFF, preserving all detected
+  # hydrophone channels as independent training vectors.
+  enabled: false                         # [NOT SPECIFIED BY PAPER] Default: OFF
+  
+  # Optional ablation/reconstruction parameters (if enabled):
+  max_lag_ms: 10.0                       # [IMPLEMENTATION REQUIRED]
+  min_overlap_ratio: 0.50                # [IMPLEMENTATION REQUIRED]
+  max_freq_diff_hz: 93.75                # [IMPLEMENTATION REQUIRED] (1 STFT bin)
+  selection_strategy: "seeded_random"    # [IMPLEMENTATION REQUIRED] Neutral selection
+
+# -----------------------------------------------------------------------------
+# STAGE 6: TIME-FREQUENCY VECTORS & LONG-CONTOUR SCREENING
+# -----------------------------------------------------------------------------
+tf_vectors:
+  # [PAPER-SPECIFIED] Sec. II.C ("extracted whistle time-frequency vectors")
+  dual_representation: true              # [IMPLEMENTATION REQUIRED] Native (frame, bin) + physical (s, Hz)
+
+long_contours:
+  # [NOT SPECIFIED BY PAPER] The paper establishes fixed 128x128 image representations.
+  # It does NOT specify whether whistles > 128 frames (>0.683 s) were cropped,
+  # time-warped, segmented, or dropped.
+  # DEFAULT CHOICE: Drop overlong whistles and log to overlong_contours.csv for full transparency.
+  # Q4 FINAL DECISION: L > 128 -> reject (drop_and_log). H1 ASSUMPTION.
+  # Paper fixes 128 width only; no cropping/resizing strategy stated.
+  max_length_frames: 128                 # 128 width PAPER FACT; rejection policy H1
+  policy: "drop_and_log"                 # H1 (do NOT center-crop / random-crop / resize)
+
+# -----------------------------------------------------------------------------
+# STAGE 7: NFM SIGNAL SYNTHESIS & BASEBAND CONVERSION (H1 AUDIT)
+# -----------------------------------------------------------------------------
+nfm:
+  # [PAPER-SPECIFIED] Sec. II.B, Fig. 3 ("with the center frequency removed")
+  # [NOT SPECIFIED BY PAPER] Formula for center frequency (midrange vs mean vs median)
+  # Q4 FINAL DECISION: fc = (fmin+fmax)/2. H1 ASSUMPTION (paper: removed/centered only).
+  center_freq_definition: "midrange"     # H1 (was NOT SPECIFIED BY PAPER)
+  
+  # [PAPER-SPECIFIED] Sec. II.B, Fig. 2(d) ("constant-amplitude NFM signal")
+  amplitude: 1.0                         # [PAPER-SPECIFIED] Constant envelope
+  initial_phase_rad: 0.0                 # [IMPLEMENTATION REQUIRED]
+  
+  # [NOT SPECIFIED BY PAPER] Baseband sampling rate and bandwidth
+  # PREVIOUS STATUS: Incorrectly claimed as [DERIVED FROM PAPER].
+  # AUDIT CORRECTION: The paper never states Fs = 12 kHz in the text.
+  #                   It is an UNRESOLVED IMPLEMENTATION HYPOTHESIS (H1)
+  #                   consistent with Fig. 2 (+/- 6 kHz frequency axis).
+  # Q5 FINAL DECISION: keep H1 NFM realization. Constant amplitude = PAPER FACT;
+  # 12 kHz rate, linear interp, cumsum phase, complex exp(jφ), amp value = ALL H1.
+  baseband_fs_hz: 12000.0                # H1 (paper never states 12 kHz in text)
+  baseband_bandwidth_hz: 12000.0         # [NOT SPECIFIED BY PAPER] Hypothesis H1
+  baseband_span_min_hz: -6000.0          # [NOT SPECIFIED BY PAPER] Hypothesis H1
+  baseband_span_max_hz: 6000.0           # [NOT SPECIFIED BY PAPER] Hypothesis H1
+
+# -----------------------------------------------------------------------------
+# STAGE 8: STFT #2 & 128x128 CONTINUOUS GRAYSCALE IMAGE CONSTRUCTION
+# -----------------------------------------------------------------------------
+image:
+  # [PAPER-SPECIFIED] Sec. II.C ("transformed into a 128 x 128 grayscale image")
+  height_rows: 128                       # [PAPER-SPECIFIED]
+  width_cols: 128                        # [PAPER-SPECIFIED]
+  channels: 1                            # [PAPER-SPECIFIED] Single-channel grayscale
+  dtype: "float32"                       # [PAPER-SPECIFIED] Continuous intensities in [0, 1]
+  
+  # [NOT SPECIFIED BY PAPER] STFT #2 FFT parameters
+  # PREVIOUS STATUS: Incorrectly claimed as [DERIVED FROM PAPER].
+  # AUDIT CORRECTION: The paper does NOT state NFFT=128, hop=64, or Hamming for STFT #2.
+  #                   These are UNRESOLVED IMPLEMENTATION HYPOTHESES (H1).
+  # Q6 FINAL DECISION: H1 STFT#2 params (paper silent). Keep geometry;
+  # fix FORWARD NORMALIZATION only (see h1_image.py calibrated_two_sided_window_sum).
+  stft2_nfft: 128                        # H1 (was NOT SPECIFIED BY PAPER)
+  stft2_hop: 64                          # H1
+  stft2_window: "hamming"                # H1
+  center_row: 64                         # H1 (DC at row 64)
+  temporal_centering: true               # H1
+  
+  # Q6 NORMALIZATION FIX: "constant_window_sum" (divide by sum(w)/2) is RETIRED.
+  # It double-normalizes under scipy.signal.stft scaling -> peak ~0.029 < 0.05 decode.
+  # Replacement "calibrated_two_sided_window_sum" (H1): divisor measured from a
+  # reference unit-amplitude DC tone through the IDENTICAL scipy.signal.stft call,
+  # so a bin-centered tone maps to exactly 1.0. Data-independent (no dataset stats).
+  # Paper fact: range [0,1] whistle≈1 (Fig.1). Implementation rule = H1.
+  normalization: "calibrated_two_sided_window_sum"   # H1 (was constant_window_sum)
+  
+  # [PAPER-SPECIFIED] Training images are strictly continuous grayscale.
+  # NO binarization or thresholding is permitted during preprocessing!
+  apply_binarization: false              # [PAPER-SPECIFIED] Must be false
+
+# -----------------------------------------------------------------------------
+# INTERNAL IMPLEMENTATION VALIDATION (SEPARATED FROM PREPROCESSING)
+# -----------------------------------------------------------------------------
+validation:
+  # Internal QC verifies that generated 128x128 images faithfully encode the whistle contour.
+  # NOTE: This is an INTERNAL ENGINEERING VALIDATION CHECK ONLY, NOT paper preprocessing!
+  enabled: true                          # Run validation check on generated representations
+  quarantine_on_failure: false           # Do NOT drop training images based on validation
+  
+  # [PAPER-SPECIFIED] Fig. 2(b) ("by applying a simple threshold of 0.05 to the image")
+  # In the paper, this threshold is used to decode contours from generated images.
+  # Q6: decode 0.05 = PAPER FACT (Fig. 2b, keep). Tolerances = H1/ENGINEERING QC ONLY.
+  contour_decode_threshold: 0.05         # PAPER FACT — DO NOT CHANGE
+  max_centroid_error_bins: 1.0           # H1 QC (was INTERNAL VALIDATION TOLERANCE)
+  max_length_error_frames: 3             # H1 QC
+
+# -----------------------------------------------------------------------------
+# CANONICAL DATASET STORAGE (ENGINEERING ONLY — NOT SCIENCE, NOT PAPER)
+# -----------------------------------------------------------------------------
+# HDF5/parquet/versioning are our storage decisions. The paper does not specify
+# them. No key in this block may alter Q1-Q6 scientific behavior.
+dataset:
+  version: "preprocessing_v001"        # storage version; new science config -> new version
+  dir: "datasets"                      # relative to paper_reproduction/ unless absolute
+  compression: "gzip"                  # stable HDF5 compression
+  compression_level: 4                 # gzip level (random-access friendly)
+  chunk_samples: 8                     # HDF5 chunk (N-chunk,128,128,1)
+  preview_count: 64                    # debug PNGs only; HDF5 stays canonical
+  export_npy: false                    # legacy per-sample .npy/.png; default OFF
+  overwrite: false                      # refuse to overwrite a COMPLETE version
+
+# -----------------------------------------------------------------------------
+# REPRODUCIBILITY, PATHS & LOGGING
+# -----------------------------------------------------------------------------
+execution:
+  random_seed: 42
+  num_workers: 4                         # Multiprocessing workers for full 363-file run
+  batch_size: 10                         # Checkpoint batch size
+
+paths:
+  base_dir: "d:/ALL/whistles/paper_reproduction"
+  outputs_dir: "outputs"
+  logs_dir: "logs"
+  derived_h1_path: "derived_h1.yaml"

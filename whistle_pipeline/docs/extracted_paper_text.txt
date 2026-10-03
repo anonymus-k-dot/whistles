@@ -1,0 +1,1775 @@
+=== PAGE 1 ===
+Received 15 January 2026, accepted 7 February 2026, date of publication 13 February 2026, date of current version 24 February 2026.
+Digital Object Identifier 10.1109/ACCESS.2026.3664765
+A Generative Model for Cetacean Whistles
+Using Variational Autoencoder and Mixture
+of Gaussians
+GEUN-HO PARK
+, JONGMIN AHN, WANJIN KIM
+, INSOO KIM,
+AND DONG-HUN LEE, (Member, IEEE)
+Agency for Defense Development, Jinhae, Changwon-si 51678, Republic of Korea
+Corresponding author: Geun-Ho Park (ghpark57935@add.re.kr)
+This work was supported by the Future Challenge Defense Technology Research and Development Program of the Agency for Defense
+Development (ADD), funded by the Defense Acquisition Program Administration (DAPA), in 2026, under Grant 915084201.
+ABSTRACT This paper proposes a tractable and compact generative model for cetacean whistle signals
+based on Variational Autoencoder (VAE) and mixture of Gaussians in underwater biomimetic communica-
+tion. Cetacean whistles are nonlinear frequency-modulated signals with diverse time-frequency structures
+and can be interpreted as probability density functions. To learn the marginal probability distribution of
+whistle data, this study incorporates a VAE and a mixture of Gaussians. The VAE learns latent space
+representations from whistle spectrogram images, and the prior distribution of the latent variables is
+modeled using multiple Gaussian components. Since the latent space of whistle contour is modeled as
+an explicit density function of multimodal structure, it enables unsupervised clustering and conditional
+whistle generation by analyzing component-wise features. The statistical distance between the synthesized
+whistles and the training data was evaluated using the Fréchet inception distance, Recall, Precision, and F1-
+score yielding a score of 2.6767, 87.21%, 91.99%, and 89.54%, respectively, when the number of Gaussian
+components was set to 10,000.
+INDEX TERMS Cetacean whistle, conditional generative model, generative model, mixture of Gaussians,
+variational autoencoder, biomimetic underwater communication.
+I. INTRODUCTION
+A. BRIEF INTRODUCTION OF BIOMIMETIC UNDERWATER
+COMMUNICATION
+Underwater biomimetic communication is a technique that
+emulates acoustic signals produced by marine mammals,
+primarily utilizing cetacean clicks and whistles [1], [2],
+[3], [4], [5], [6], [7], [8], [9]. Cetacean whistles are non-
+linear frequency-modulated signals characterized by time-
+varying frequencies, which appear as diverse contours in
+spectrograms. Previous studies have proposed communi-
+cation schemes that replicate the structural patterns of
+whistle contours or have adapted conventional digital mod-
+ulation techniques for biomimetic purposes [1], [2], [3],
+[4], [5], [6], [7]. In contrast, clicks are broadband pulse
+The associate editor coordinating the review of this manuscript and
+approving it for publication was Sotirios Goudos
+.
+signals, and to fully exploit their wideband characteristics,
+time-delay modulation—where information bits are encoded
+in the time intervals between pulses—has been predomi-
+nantly used [8], [9].
+However, click sounds are generally unsuitable for
+biomimetic communication due to their broadband charac-
+teristics [37]. This limitation arises for two primary reasons.
+First, click signals have a relatively short propagation range.
+In particular, their high-frequency components experience
+significant attenuation due to underwater transmission loss,
+making them unsuitable for long-range communication over
+several kilometers. In contrast, whistles—with their relatively
+narrowband nature—are more favorable for long-distance
+transmission. Second, there are design constraints in under-
+water acoustic projectors. Most current projectors have
+difficulty generating very short-duration broadband pulses
+effectively.
+VOLUME 14, 2026
+ 2026 The Authors. This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License.
+For more information, see https://creativecommons.org/licenses/by-nc-nd/4.0/
+27877
+
+
+=== PAGE 2 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+Biomimetic communication enables underwater platforms
+to exchange information covertly. Communication signals
+that mimic the characteristics and structure of biological
+sounds may be detected or intercepted by non-cooperative
+platforms; however, they are misidentified as biological
+emissions and subsequently ignored. Therefore, the precise
+modeling of the probability density function of biological
+signals is essential to ensure the covert nature of biomimetic
+communication. In this context, it is important to first collect
+a sufficient number of biological signal samples x, estimate
+their marginal probability distribution p (x), and then gener-
+ate synthetic communication signals that follow the estimated
+distribution.
+B. MOTIVATION OF THIS WORK
+Whistle-based
+biomimetic
+communication
+requires
+the
+acquisition of a large dataset of whistle contours from the
+target species to preserve covertness. The communication
+signal can then be constructed by either selecting a finite set
+of representative whistles for modulation or by employing
+generative methods that replicate the underlying probability
+distribution of real whistles. Nevertheless, some biomimetic
+communication approaches are inherently limited in their
+ability to faithfully mimic real whistle contours. For example,
+the modulation scheme called Binary Orthogonal Keying
+(BOK), proposed in [10], divides a whistle signal into fixed
+symbol intervals and modulates each symbol using two types
+of chirp signals, each centered around the whistle frequency
+of the corresponding interval. However, such approaches that
+modify the original whistle signal may reduce its similar-
+ity to real whistle signals, posing a limitation in terms of
+biomimicry.
+In contrast, there have been efforts to utilize real whis-
+tle contours directly. Ahn et al. [11] extracted and selected
+whistle signals from white-sided dolphins and applied them
+to a machine learning-based biomimetic communication
+framework. In their study, the whistles were grouped, and
+communication symbols were assigned based on the transi-
+tions between these groups. A total of 704 selected whistles
+were used in the system.
+However, repeating a limited set of whistle patterns using
+underwater acoustic projectors can compromise the covert
+nature of biomimetic communication. Deterministic meth-
+ods that select and transmit from a fixed set of signals
+may allow adversarial systems—designed to continuously
+monitor and analyze biological acoustic emissions—to iden-
+tify recurring patterns. Such deterministic signal generation
+approaches increase the risk of exposing not only the pres-
+ence of biomimetic communication but also its modulation
+schemes and system parameters. The advancement of deep
+learning-based artificial intelligence technologies further
+amplifies this risk.
+One approach to mitigating the limitations of using fixed
+whistle patterns, as mentioned earlier, is to model the whistle
+shapes as a probability density function and to utilize newly
+generated data sampled from this distribution. Although the
+sampled whistles resemble the original patterns, they are not
+exact replicas, making them more likely to be perceived as
+natural biological signals.
+Accordingly, the objective of this study is to design a deep
+generative model for biomimetic underwater communication
+that can be deployed on surface or underwater platforms
+and that faithfully replicates the whistle sounds of observed
+whales or dolphins. Specifically, the model is designed to
+follow the estimated probability distribution of the collected
+whistle data. By leveraging the proposed approach, there is
+a higher chance that non-cooperative platforms will inter-
+pret the generated signals as genuine biological emissions,
+thereby decreasing the risk of the transmitting platform being
+exposed.
+C. RELATED WORK
+Considering whistle data in the image domain, such as spec-
+trograms, the whistle generation technique addressed in this
+study can be implemented using widely adopted deep genera-
+tive models [12], [13], [14], [15], [16]. Currently, commonly
+used models for image generation include energy-based mod-
+els [12], variational autoencoders (VAEs) [13], normalizing
+flows [14], generative adversarial networks (GANs) [15], and
+diffusion models [16], [17].
+To the best of our knowledge, GANs are the only approach
+of deep learning-based generative model that has been
+applied to cetacean whistle generation [18], [19], [20]. These
+GAN-based methods were introduced to avoid repeated use
+of identical whistle sounds or to mitigate the issue of limited
+training data [18], [19], [20]. Zhang et al. [18] trained a Deep
+WaveGAN to generate waveform-level bottlenose dolphin
+whistles and evaluated the similarity between synthetic and
+real data using various time- and frequency-domain metrics.
+Wang et al. [19] addressed the data scarcity problem by
+applying various augmentation techniques to a small set of
+bottlenose dolphin whistles and trained a masking autoen-
+coder and GAN to generate high-quality signals. Kim et al.
+[20] proposed WhistleGAN, which combines Mel filter banks
+with a deep convolutional GAN, to avoid the repetition of
+whistle sounds in biomimetic communication and presented
+a computer simulation for biomimetic communication based
+on synthetic biological signals. All three studies [18], [19],
+[20], which rely on the inherent characteristics of GANs,
+enable the generation of high-quality whistle data at relatively
+high speed.
+However, GANs suffer from two fundamental limitations.
+The first is mode collapse. Because GANs generate data
+through a minimax game between the generator and the
+discriminator, the generator may learn to produce only a
+narrow subset of data that can fool the discriminator [21].
+Mode collapse is a well-known issue intrinsic to GANs, and
+thus incorporating them into the transmission architecture
+of biomimetic communication introduces practical con-
+straints. Second, GANs do not explicitly model probability
+distributions. As a result, even after training a whistle gener-
+ation model, the underlying distribution remains intractable.
+27878
+VOLUME 14, 2026
+
+
+=== PAGE 3 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+In contrast, explicit modeling of probability distributions
+enables additional capabilities such as density estimation,
+likelihood calculation, and unsupervised clustering—features
+that GANs do not inherently support.
+The VAE and Mixture of Gaussians-based approach pro-
+posed in this study has not been utilized in the bio-signal
+generation field but has primarily been considered within
+the machine learning community [22], [23], [24], [25],
+[26], [27], [28], [38], [39]. Specifically, modeling the prior
+distribution p (z) of the latent variables in a VAE using a mul-
+timodal structure such as a mixture of Gaussians enhances
+the expressiveness of the generative model for complex
+data, enables unsupervised clustering. Dilokthanakul et al.
+[22] proposed the Gaussian Mixture Variational Autoencoder
+(GMVAE), which models the latent prior as a Gaussian
+Mixture Model (GMM) and introduces both discrete and
+continuous higher-level latent variables, enabling the model
+to capture natural and interpretable cluster structures in an
+unsupervised setting. They also analyzed the issue of cluster
+degeneracy caused by over-regularization in standard VAEs
+and introduced a simple heuristic to effectively mitigate
+this problem. Jiang et al. [23] proposed Variational Deep
+Embedding (VaDE), an unsupervised generative clustering
+framework that incorporates a GMM prior into VAE archi-
+tecture, enabling joint learning of latent representations and
+cluster assignments while retaining the model’s generative
+capacity.
+However, the approaches presented in [22], [23], [24], [25],
+[26], [27], and [28] require a rapidly increasing number of
+learnable parameters as the number of clusters grows. For the
+large-scale clustering level (approximately 10,000 clusters)
+considered in this study, such methods become computa-
+tionally inefficient. For example, both GMVAE and VaDE
+simultaneously learn a mean vector and a covariance matrix
+for each cluster during network training, resulting in a sub-
+stantial increase in learnable parameters as the number of
+clusters rises. Similarly, VampPrior must learn a pseudo-input
+corresponding to each cluster, with the same dimensionality
+as the input image, which further increases the parameter
+count. Although these existing methods may effectively cap-
+ture the latent space when using a relatively small number
+of clusters, employing a larger number of clusters is more
+advantageous for achieving fine-grained and flexible condi-
+tional generation.
+D. CONTRIBUTIONS OF THE STUDY
+This paper proposes a VAE-GMM framework for modeling
+the marginal probability distribution of whistle image data
+from false killer whales (Pseudorca crassidens). The whistle
+data generated by the proposed VAE-GMM exhibit a high
+degree of similarity to real biological signals. When evalu-
+ated using the Fréchet Inception Distance (FID), Recall, and
+Precision metrics, the proposed model outperformed existing
+methods while maintaining a comparable generation speed.
+Unlike traditional biomimetic communication approaches
+that repeatedly transmit a limited set of playback signals,
+the proposed VAE-GMM based whistle generation method
+enables a more authentic biomimetic reproduction of real
+biological sounds.
+Furthermore, because the VAE-GMM organizes data
+according to the morphological characteristics of whistles,
+it inherently provides the effect of unsupervised clustering.
+During training, the VAE maps whistles with similar struc-
+tural patterns to neighboring regions in the latent space. When
+this latent space is subsequently modeled using a GMM, sim-
+ilar patterns are grouped into the same Gaussian component.
+Moreover, the proposed VAE-GMM supports highly flex-
+ible conditional whistle generation. Since each Gaussian
+component—or a group of components—can represent a spe-
+cific whistle shape, generating desired whistle types becomes
+feasible by sampling from specific components. Conditional
+generation becomes feasible by analyzing the whistle char-
+acteristics such as whistle length, minimum and maximum
+frequency, start and end frequency, bandwidth, and cen-
+ter frequency. By analyzing other whistle characteristics in
+advance, the model can be easily extended to generate new
+samples under specific conditions.
+The conditional generation mechanism of the VAE-GMM
+offers two key advantages over existing approaches such
+as Conditional GANs (CGANs) and Conditional Diffusion
+Models (CDMs) that employ classifier guidance or classifier-
+free guidance [40], [41]. First, VAE-GMM does not require
+explicit class label assignments for conditional generation.
+By modeling the latent space with a GMM, the images are
+automatically clustered and categorized. In contrast, CGANs
+and CDMs must be trained with predefined class labels as
+conditioning inputs. Since whistle patterns exhibit highly
+diverse and continuous variations, it is practically infeasi-
+ble to predefine discrete classes for them, which further
+highlights the advantage of VAE-GMM in eliminating the
+need for class assignment. Second, VAE-GMM demonstrates
+superior flexibility in conditional generation. In CGANs and
+CDMs, the predefined labels serve as the sole mechanism
+for controlling conditional synthesis, which inherently limits
+their ability to generalize to diverse generation conditions.
+In contrast, the proposed method can flexibly generate data
+under various conditions by analyzing the characteristics of
+each Gaussian component.
+The proposed method is clearly distinguished from existing
+cetacean whistle generation models [18], [19], [20] in that
+it enables flexible and scalable conditional generation. Since
+the models in [18], [19], and [20] are based on GANs, their
+conditional generation mechanism is limited to CGANs, and
+their underlying probability distributions remain intractable.
+In contrast, the relatively simple combination of VAE and
+GMM offers greater flexibility and efficiency in conditional
+generation, primarily due to the characteristics of the whistle
+image dataset. Unlike large-scale vision datasets such as
+ImageNet or COCO, the whistle image dataset contains less
+information. Although the whistle contours are diverse in
+VOLUME 14, 2026
+27879
+
+
+=== PAGE 4 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 1. Examples of whistle image data used to train the proposed
+VAE-GMM model: The actual data used in this study are normalized to
+have intensities between 0 and 1, with the whistle regions having values
+close to 1. For better visual clarity, the intensities have been inverted in
+the figure.
+shape, the images are grayscale with almost no background
+content, making lightweight models more suitable for this
+domain. Therefore, we argue that the proposed VAE-GMM
+approach is more appropriate than current state-of-the-art dif-
+fusion models, particularly in terms of conditional generation
+flexibility and the tractability of the probability distribution.
+The key contributions of this study are summarized as
+follows:
+1) The VAE-GMM is shown to effectively model the
+marginal distribution of whistle images, and its gener-
+ation performance is evaluated using the FID, Recall,
+and Precision.
+2) We model the latent variables of whistle images
+using the GMM and perform a component-wise anal-
+ysis. By doing so, we demonstrate that flexible and
+extensible conditional whistle generation is achievable
+for various parameters—such as signal length, max-
+imum/minimum frequency, and bandwidth—without
+the need for explicit class labels.
+3) The VAE-GMM is shown to support downstream
+tasks such as unsupervised clustering through MAP
+estimation.
+4) We proposed a lightweight architecture specifically
+optimized for whistle generation to achieve high com-
+putational efficiency and throughput, thereby demon-
+strating
+its
+technical
+feasibility
+for
+resource-constrained real-time applications.
+E. OUTLINE
+The remainder of this paper is organized as follows. Section II
+describes the dataset and the training procedure of the VAE-
+GMM. Section III presents the methods for marginal and con-
+ditional sampling, and unsupervised clustering. Section IV
+describes experimental results and a comprehensive perfor-
+mance analysis. Section V offers a detailed discussion of the
+study’s limitations. Finally, Section VI concludes the paper.
+II. LEARNING WHISTLE GENERATIVE MODEL
+A. PROBLEM FORMULATION
+In this work, we consider the problem of modeling dolphin
+whistle signals for the purpose of biomimetic sound source
+FIGURE 2. Process of generating an NFM signal from a whistle image:
+(a) the first panel shows an example of a whistle image generated by the
+VAE-GMM, (b) by applying a simple threshold of 0.05 to the image, the
+whistle contour shown in the second panel can be obtained, (c) the third
+panel presents the estimated time-frequency vector derived from the
+binary whistle image consisting of 0s and 1s, (d) the final panel displays
+the resulting constant-amplitude NFM signal generated based on this
+time-frequency vector.
+generation and underwater covert communication. In general,
+cetacean whistles are observed as continuous
+sequences over time. Let the observed whistle sequence
+be denoted as a vector x = (x1, x2, . . . , xN), where each xi
+represents an individual whistle signal and N is the number
+of whistles.
+Assuming that the whistles are generated independently
+and identically from an unknown probability distribution
+p (x) , the joint probability of the whistle sequence x can be
+factorized as:
+p (x) =
+N
+Y
+i=1
+p (xi) = p (x)N .
+(1)
+With the i.i.d. assumption, modeling an entire whistle
+sequence becomes a task of learning the distribution of a
+single whistle, p (x). Therefore, the main objective of this
+study is to construct a biomimetic generative model that
+accurately captures the underlying distribution p (x) of indi-
+vidual whistle signals. In this sense, modeling the probability
+distribution of an individual whistle is equivalent to modeling
+the sequence-structured whistle data we have observed.
+The distribution p (x) can be represented by introducing a
+latent variable z, which signifies an underlying factor capable
+of explaining the whistle data as follows:
+p (x) =
+Z
+p (x, z) dz =
+Z
+p (x|z) p (z) dz.
+(2)
+However, since p (x) is practically intractable, the whistle
+generative model is implemented by learning an approximate
+posterior distribution q (x | z) of p (x | z) and modeling prior
+distribution of latent vector p (z) with a mixture of Gaussians.
+27880
+VOLUME 14, 2026
+
+
+=== PAGE 5 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 3. Preparation process of the whistle dataset: The raw acoustic
+signal is first converted into a spectrogram, and a whistle contour
+extraction technique is then applied to obtain the time-frequency vector
+of each individual whistle. The time-frequency vector is subsequently
+transformed into a whistle image with the center frequency removed
+through constant-amplitude NLFM and spectrogram conversion
+processes.
+This formulation enables an approach to generating real-
+istic dolphin-like whistles and provides a foundation for
+applications such as biomimetic underwater communica-
+tion and the development of data-driven signal synthesis
+techniques.
+B. DATA REPRESENTATION
+The domain of the target whistle data x can take various
+forms. In this study, we adopt a representation in which each
+whistle is expressed as a single image depicting the contour of
+a baseband whistle signal with the center frequency removed
+as in Fig. 1.
+The time-frequency contour information embedded in
+the image-based whistle data can be easily converted into
+a time-frequency vector using simple thresholding tech-
+niques. Based on this vector, the final nonlinear frequency-
+modulated (NFM) signal can be synthesized. Fig. 2 illustrates
+the process of extracting a time-frequency vector from a
+single-whistle image using thresholding, and generating a
+constant-amplitude NFM signal based on this vector.
+C. WHISTLE DATASET
+To construct a whistle spectrogram dataset for the false
+killer whale, this study utilized the Detection, Classification,
+Localization and Density Estimation (DCLDE) 2022 Raw
+Passive Acoustic Data, which was publicly released online
+by the National Oceanic and Atmospheric Administration
+(NOAA) [29]. The dataset comprises underwater acoustic
+recordings collected using a multi-channel towed hydrophone
+array during the Hawaiian Islands Cetacean and Ecosystem
+Assessment Survey (HICEAS) conducted between July and
+November 2017. The recordings were obtained alongside
+visual line-transect surveys aimed at estimating cetacean
+abundance and density.
+For this study, we selected 2,486 acoustic files containing
+whistles from the false killer whale as the target data. Each
+file generally contains 60 seconds of underwater acoustic
+signals measured from six hydrophones arranged in a towed
+array configuration, and the sampling rate is 500 kHz.
+Fig. 3 illustrates the overall process of constructing the
+whistle dataset from raw acoustic signals. This process con-
+sists of three main stages: spectrogram conversion, whistle
+extraction, and dataset preparation.
+In the first stage, the raw acoustic signals contain-
+ing whistles are converted into spectrograms, allowing the
+time-frequency characteristics of the whistles to be visually
+identified. The spectrogram was generated after resampling
+the signal to 192 kHz, applying a 2,048-point Hamming
+window, and using a 50% overlap. As a result, the time
+and frequency resolutions were approximately 5.3 ms and
+93.75 Hz, respectively. To suppress low-frequency ocean
+noise, a high-pass filter with a passband above 2 kHz was
+applied.
+In the second stage, a neural network-based whistle extrac-
+tion method [31] was applied to detect individual whistle
+contours. The extraction process was combined with a
+post-processing algorithm [32], [33] that converts detection
+outputs into individual whistle tracks.
+In the final stage, the extracted whistle time-frequency
+vectors were converted into individual whistle images to
+construct the final training dataset. A total of 228,673 whis-
+tle time-frequency vectors were obtained from 2,486 raw
+acoustic signal files. Each vector was then used to gen-
+erate a constant-amplitude NFM baseband signal and its
+spectrogram, which was further transformed into a 128 ×
+128 grayscale image (See Figs. 1 and 3).
+D. LEARNING VARIATIONAL AUTOENCODER
+VAEs are probabilistic generative models that learn a latent
+variable representation of data. The VAE consists of an
+encoder network that approximates the intractable true
+posterior distribution p (z | x) with a tractable variational dis-
+tribution q (z | x), and a decoder that models the conditional
+likelihood p (x | z). The model is trained by maximizing the
+Evidence Lower Bound (ELBO), which jointly encourages
+accurate reconstruction of the data and regularization of the
+latent space via the KL divergence between the approximate
+posterior and the prior p (z).
+To control the strength of latent regularization, a weighting
+factor β can be applied to the regularization term LKL in the
+VAE loss. The total loss function L (x) is then given by the
+following expression:
+L (x) = Lrec + βLKL,
+(3)
+where Lrec
+=
+−Eq(z|x)
+
+log p (x | z)
+
+and LKL
+=
+KL (q (z | x) ∥p (z)). Here, E (·) denotes the ensemble aver-
+age and Lrec denotes the reconstruction loss.
+VOLUME 14, 2026
+27881
+
+
+=== PAGE 6 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 4. VAE learning framework integrated with a WGAN-GP critic. The encoder functions as a variational posterior that maps whistle images into
+latent variables, which are modeled by a GMM. The decoder reconstructs the whistle images from these latent variables, while the WGAN-GP critic
+ensures that the output of the VAE aligns with the actual data distribution.
+Fig. 4 illustrates the training framework of the VAE. The
+input data x is encoded into a latent variable z through the
+encoder, and the decoder is trained to reconstruct the input
+by generating an output ˆx that closely resembles the original
+input. In (3), by setting the weighting coefficient β ≪1, the
+constraint imposed by the prior distribution of latent vector
+z ∼N (0, I) can be relaxed to some extent, allowing the latent
+space to be represented on a specific manifold rather than
+as a general multivariate normal distribution. z ∼N (0, I)
+can be relaxed to some extent, allowing the latent space to
+be represented on a specific manifold rather than as a general
+multivariate normal distribution.
+As shown in Fig. 4, we trained an additional critic net-
+work to encourage the VAE outputs to resemble real images
+more closely. This training framework is a modified version
+of the autoencoder training scheme used in latent diffusion
+models [17], where we added an adversarial loss term in
+addition to the reconstruction loss and the KL divergence in
+(3). To ensure stable training, both the VAE and the critic were
+optimized using the Wasserstein GAN with Gradient Penalty
+(WGAN- GP) [49]. A weighting coefficient λ was introduced
+to balance the adversarial loss Ladv, and the final loss function
+Lβ−VAE (x) used for VAE training in this study is defined as
+follows:
+Lβ−VAE (x) = Lrec + βLKL + λLadv,
+(4)
+where Ladv = −Ez∼q(z|x)
+
+log D (p (x|z))
+
+and D (·) denotes
+the output of the critic network. The critic follows the stan-
+dard WGAN-GP loss function LD(x, ˆx), defined as:
+LD(x, ˆx) = Eˆx∼PVAE
+
+D
+ ˆx
+
+−Ex∼Pr [D (x)]
++ λGPE˜x
+h ∥∇˜xD (˜x)∥2 −1
+2i
+,
+(5)
+where PVAE and Pr denote the distributions of the VAE
+outputs and the real data, respectively. ˆx is the VAE outputs,
+˜x is defined as ˜x = ϵx + (1 −ϵ) ˆx for ϵ ∈U (0, 1), and λGP
+is the weighting coefficient for the gradient penalty.
+The adversarial loss in (4) differs from the conventional
+loss in that it applies a logarithmic function to the critic’s
+output. We observed that applying the log function to Ladv
+led to improved performance during the early stages of VAE
+training. This effect is considered to be similar to alleviat-
+ing the vanishing gradient problem, much like replacing the
+generator loss in GANs from min (1 −log D) to max (log D)
+[34]. The network architectures and the training configuration
+of the VAE encoder, decoder, and critic are described in the
+Appendix A.
+E. LEARNING GAUSSIAN MIXTURE MODEL
+The objective of training the GMM model for whistle gen-
+eration is to effectively model the latent manifold using K
+Gaussian components. In other words, the goal is to estimate
+the parameters of these Gaussian distributions. Accordingly,
+the prior distribution of the latent variable can be expressed
+as a linear combination of K Gaussian components:
+p (z) =
+K
+X
+k=1
+πkN (z|µk, 6k),
+(6)
+where πk denotes the mixing coefficient (a parameter of
+the categorical distribution), µk is the mean vector, 6k is
+the covariance matrix, and N (z|µk, 6k) represents the k-th
+Gaussian component. The parameter πk must satisfy 0 ≤
+πk ≤1, and P
+k πk = 1.
+Suppose
+we
+have
+a
+set
+of
+latent
+representations
+{z1, z2, . . . , zN} extracted from the whistle dataset. Based on
+these samples, the goal is to estimate the parameters π, µ,
+and 6 of the mixture of Gaussians. These parameters can
+be effectively estimated using the well-known Expectation-
+Maximization (EM) algorithm [35]. In this study, we adopt
+the standard EM algorithm to learn the parameters of the
+prior distribution p(z) (See details in Appendix B). The input
+for GMM training consists of the latent mean outputs of
+encoder.
+27882
+VOLUME 14, 2026
+
+
+=== PAGE 7 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 5. Process of unconditional and conditional whistle generation:
+In unconditional generation, the prior probability of each Gaussian
+component is directly used for data sampling. In conditional generation,
+the component weights are converted and normalized into conditional
+component weights according to the given condition before being
+applied to sampling. After sampling a component and a latent vector, the
+latent vector is fed into the decoder to synthesize the corresponding
+whistle image.
+III. SAMPLING AND INFERENCE METHODS
+This section describes the methods for unconditional and
+conditional whistle generation, and unsupervised clustering
+based on MAP estimation.
+A. UNCONDITIONAL GENERATION
+After sequentially training the VAE and GMM, uncondi-
+tional whistle generation can be sequentially performed by
+sampling C, z, and ˆx as shown in Fig. 5. The unconditional
+generation process consists of the following three steps:
+1) Sample a Gaussian component C ∼Categorical (π).
+2) Sample z ∼N (z|µC, 6C).
+3) Generate ˆx ∼pθ (x|z), where pθ (x|z) represents the
+VAE decoder network.
+B. CONDITIONAL GENERATION
+Conditional generation refers to the process of synthesiz-
+ing whistle signals that satisfy specific conditions, where
+each Gaussian component—or a group of components—
+may represent a particular whistle shape. To generate target
+shape effectively, a conditional generation method that is
+both controllable and tractable is essential. The VAE-GMM
+framework proposed in this study is well-suited to this task,
+as it explicitly models the prior distribution of latent variables.
+Conditional generation of whistle sounds can be inter-
+preted as the process of sampling a latent variable z from a
+subset K ⊂{1, 2, . . . ,K} of components that satisfy a given
+condition. Accordingly, the latent variable z can be sampled
+from:
+z ∼
+X
+k∈K
+˜πkN (z|µk, 6k),
+(7)
+where
+˜πk =
+πk
+P
+k∈K πk
+.
+(8)
+Equation (8) represents a normalized form of the mix-
+ing coefficients of the Gaussian components that satisfy the
+condition. In this paper, ˜πk is defined as the conditional
+component weight.
+Once the relevant components are identified, this normal-
+ization can be easily computed. Based on (7) and (8), the
+conditional generation process as shown in Fig. 5, similar
+to unconditional generation, consists of the following three
+steps:
+1) Sample a Gaussian component C ∼Cat ( ˜π) in K.
+2) Sample z ∼N (z|µC, 6C).
+3) Generate ˆx ∼pθ (x|z).
+This conditional generation method assumes that the
+selected Gaussian components are suitable for generating
+whistle sounds that meet the specified condition. In practice,
+multiple whistle latent samples z ∼N (µC, 6C) can be
+generated from each component C and analyzed to determine
+whether the component satisfies the condition. For example,
+let l (x) denote the duration of a whistle sound. Prior analysis
+is required to verify whether the whistles generated from a
+specific component satisfy L1 ≤l (x) ≤L2, where L1 and L2
+are minimum and maximum length condition, respectively.
+If the condition is satisfied, the component can be included
+in the subset K.
+Therefore, once the VAE and GMM have been trained,
+it is necessary to analyze the distribution of feature vectors
+of the whistle samples x ∼p (x | C) generated from each
+component. The feature vector can be designed to capture
+various properties of whistle sounds. In this paper, we con-
+sider the minimum and maximum frequencies, start and end
+frequencies, bandwidth, whistle length, and center frequency.
+We selected seven commonly used statistical features in
+the field of bioacoustics for analyzing cetacean whistle sig-
+nals [42], [43], and the types of these features can be easily
+extended if necessary.
+However, even for components that satisfy the target
+condition, some generated samples may fail to meet the
+requirement precisely. For instance, when aiming to generate
+whistle sounds with durations between 30 and 40 samples,
+samples with lengths ranging from 28 to 42 may still appear
+in a specific component.
+In such cases, whistle samples that do not satisfy the
+condition can be discarded to form the desired conditional
+probability distribution. This strategy can be interpreted as a
+form of rejection sampling [35].
+Furthermore, by analyzing the acceptance ratio of samples
+generated from each component, the mixing coefficients of
+the overall conditional probability distribution can be approx-
+imated. The acceptance ratio ak (0 ≤ak ≤1) is defined as
+the proportion of whistle samples generated from Ck that
+satisfy the given condition. Then the conditional latent dis-
+tribution p (z|K) and adjusted conditional component weight
+ˇπk can be calculated as follows:
+p (z|K) =
+X
+k∈K
+ˇπkN (z|µk, 6k),
+(9)
+VOLUME 14, 2026
+27883
+
+
+=== PAGE 8 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 6. Unsupervised clustering process: new whistle data are fed into
+the trained VAE encoder to obtain latent vectors, and the MAP estimation
+assigns the input data point to its most probable Gaussian component.
+where
+ˇπk =
+akπk
+P
+k∈K akπk
+.
+(10)
+C. UNSUPERVISED CLUSTERING
+As shown in (6), the proposed model explicitly defines
+the marginal distribution of the latent variables. Given a
+new whistle observation xnew and its corresponding latent
+vector znew obtained from the VAE encoder of the approx-
+imated posterior q (z | x), it becomes possible to compute
+the responsibility p (C | z) for each Gaussian component. The
+responsibility represents the posterior probability that znew
+belongs to a particular Gaussian component, thereby indicat-
+ing which component best matches the observed whistle data.
+This can be computed using Bayes’ theorem as follows:
+p (C | z) = p (C) p (z | C)
+p (z)
+=
+πN (z|µ, 6)
+P πN (z|µ, 6),
+(11)
+where π is p (C) and p (z | C) denotes the conditional proba-
+bility density of multivariate Gaussian distribution.
+Fig. 6 illustrates a conceptual example in which the
+responsibilities for a new input xnew are computed. The
+responsibilities are evaluated for all Gaussian components,
+and the component with the highest posterior probability is
+selected as the most likely generator of the input. This MAP
+estimation enables unsupervised clustering and is expressed
+as:
+ˆk = arg max
+k
+p (Ck | z).
+(12)
+This approach allows effective clustering without requir-
+ing a separate discriminative model. In fact, the proposed
+VAE-GMM represents a generative model applied to a dis-
+criminative task, which has also been discussed in [37, Ch. 1,
+pp. 43]. We further anticipate that MAP estimation can be
+used to estimate which Gaussian component was likely
+responsible for generating a received whistle signal at the
+receiver side.
+IV. ANALYSIS OF WHISTLE GENERATIVE MODEL
+This section presents the results of unconditional and condi-
+tional
+whistle
+generation
+using
+the
+proposed
+VAE-GMM-based generator, as well as corresponding per-
+formance analyses. The evaluation focuses on both the
+FIGURE 7. Unconditional whistle image synthesis results and the
+corresponding Gaussian component index (VAE-64, K = 10, 000).
+reconstruction output of the VAE from the training dataset
+and the generated whistle images from the VAE-GMM
+model. In addition, we provide examples of unsupervised
+clustering based on the MAP estimation.
+A. UNCONDITIONAL WHISTLE GENERATION EXAMPLES
+Unconditional whistle generation follows the procedure
+described in Section III-A. Fig. 7 visualizes the results of
+sampling whistle images from various Gaussian components
+of the VAE-64-based VAE-GMM model with K = 10,000
+and L = 64, together with their corresponding component
+indices, where K and L represent the number of Gaussian
+components and the latent vector dimension, respectively.
+As illustrated, the proposed model can effectively generate
+diverse and high-quality whistle images.
+B. CONDITIONAL WHISTLE GENERATION PROCESS
+1) COMPONENT-WISE FEATURE ANALYSIS
+Before performing conditional whistle generation, it is essen-
+tial to analyze the characteristics of whistle feature generated
+by each component of the mixture of Gaussians. To this end,
+a large number of whistle samples are generated from each
+component, and the statistical distributions of their extracted
+feature vectors are analyzed to identify the generative behav-
+ior of each component.
+Fig. 8 presents whistle samples repeatedly generated from
+four components (indices k
+= 7,124, 4,268, 1,253, and
+6,114) in the VAE-GMM model with K
+= 10,000 and
+whistles tend to terminate at their peak frequency. Such
+comparisons between feature distributions can be quanti-
+tatively assessed using the KL divergence, which is left
+L = 64, along with a detailed analysis of the corresponding
+27884
+VOLUME 14, 2026
+
+
+=== PAGE 9 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 8. Whistle generation results generated by each Gaussian
+component and corresponding feature vector distributions. The left panel
+shows an overlaid visualization of 20 whistle contours generated from
+the same component, while the right panel presents histograms of seven
+feature vector distributions derived from 500 generated whistles for each
+component. The results were generated using a VAE-64 model and a
+GMM with K = 10, 000, with component indices as follows:(a) k = 7, 124,
+(b) k = 4, 268, (c)k = 1, 253, (d) k = 6, 114.
+feature vectors. As shown, whistle signals generated from
+the same component exhibit similar structural character-
+istics, and their feature vectors tend to follow consistent
+statistical distributions. For example, the average lengths of
+whistles generated from components 7,124 and 1,253 are
+FIGURE 9. Conditional whistle generation examples. The left panels show
+the overlaid visualization of 100 whistle samples that satisfy each
+specified condition, with the dotted lines indicating the boundaries of the
+condition range. The right panels present histograms of feature vectors
+showing the distribution of the generated whistles according to the
+specified length condition of 74-80 samples.
+approximately 40 and 110 samples, respectively, indicating
+a clear distinction between them.
+Moreover, analyzing differences between the distribu-
+tions of different features within the same component can
+provide additional insights into the internal characteristics
+and generation tendencies of each component. For instance,
+in Fig. 8(b), the distributions of maximum frequency and end
+frequency nearly the identical, suggesting that the generated
+for future work.
+Through this component-wise statistical analysis, one can
+construct a subset of components that satisfy specific condi-
+tions and perform conditional whistle generation accordingly.
+2) CONDITIONAL GENERATION RESULTS
+Fig. 9 illustrate the results of conditional whistle generation
+based on constraints on duration. In the left panel overlays
+100 whistle samples that meet the specified condition, with
+the dashed lines indicating the boundary of the target con-
+dition range. As shown, a substantial number of generated
+samples conform to the given conditions. The right panel
+displays histograms of the corresponding features, which also
+demonstrate that the generated whistles satisfy the specified
+criteria. This approach can be further extended to conditional
+generation based on other whistle characteristics as needed.
+Additional results of conditional generation can be found in
+Appendix C.
+C. UNSUPERVISED CLUSTERING
+Given a new whistle observation xnew, one can estimate which
+Gaussian component ˆk it belongs to using equations (11) and
+(12), as previously discussed. Fig. 10 illustrates the result of
+this MAP-based estimation: the left panel shows the input
+whistle contour, and the right panel visualizes 100 whistle
+contours sampled from the estimated component ˆk. In the
+right panel, the red line represents the input whistle con-
+tour, while the blue lines indicate the sampled contours.
+As shown, the contour generated from the estimated compo-
+nent closely resemble the input contour, demonstrating that
+the VAE-GMM structure inherently supports unsupervised
+classification for new whistle data.
+VOLUME 14, 2026
+27885
+
+
+=== PAGE 10 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 10. Visualization of MAP-based component estimation from new
+whistle input data (left panel). The right panel overlays the input contour
+(red line) with 100 whistle contours (blue lines) sampled from the
+estimated Gaussian component. (a) ˆk = 9, 441, (b) ˆk = 5, 871,
+(c) ˆk = 3, 087.
+TABLE 1. Performance evaluation result of VAE with WGAN-GP.
+However, component estimation via MAP inference may
+lead to low classification accuracy for some components.
+This can be attributed primarily to two reasons. First, when
+the Mahalanobis distance between two components in the
+latent space is small, misclassification may occur due to their
+small statistical distance. Second, in cases where the mixing
+coefficients are highly imbalanced, the MAP estimation may
+favor the component with a larger mixing coefficient, even if
+the Mahalanobis distance to another component is smaller.
+To mitigate such issues, grouping similar components
+into broader categories can be an effective strategy. For
+example, suppose two components frequently result in
+TABLE 2. Performance evaluation result based on the hyperparameters
+of the proposed VAE-GMM.
+misclassification due to the aforementioned reasons. If the
+whistle contours generated from these two components are
+visually similar, grouping them together may reduce the over-
+all classification error. This component grouping process can
+be viewed as an analytical step toward a deeper understanding
+of the latent space structure of whistle signals.
+To mitigate such issues, grouping similar components into
+broader categories can be an effective strategy. For example,
+suppose two components frequently result in misclassifi-
+cation due to the aforementioned reasons. If the whistle
+contours generated from these two components are visually
+similar, grouping them together may reduce the overall clas-
+sification error. This component grouping process can be
+viewed as an analytical step toward a deeper understanding
+of the latent space structure of whistle signals.
+D. QUANTITATIVE PERFORMANCE ANALYSIS
+1) VARIATIONAL AUTOENCODER
+We first evaluated the performance of the VAE across dif-
+ferent latent vector dimensions L using four quantitative
+metrics: Mean Square Error (MSE), Peak Signal-to-Noise
+Ratio (PSNR), Structural Similarity Index Measure (SSIM),
+and KL divergence of the latent variables. Table 1 summarizes
+the evaluation results. As the latent dimensionality increased,
+MSE consistently decreased while PSNR showed improve-
+ments, indicating better reconstruction quality. In contrast,
+SSIM generally increased with the latent dimension, except
+for the case of L = 128. The decrease in SSIM at L =
+128 appears to be due to the encoder failing to effectively
+capture features, resulting only in latent dispersion without
+the evaluation results. As the latent dimensionality increased,
+MSE consistently decreased while PSNR showed improve-
+ments, indicating better reconstruction quality. In contrast,
+SSIM generally increased with the latent dimension, except
+for the case of L = 128. The decrease in SSIM at L =
+128 appears to be due to the encoder failing to effectively
+capture features, resulting only in latent dispersion without
+meaningful representation. KL divergence values were rela-
+tively large because the weighting coefficient β for the KL
+term in the overall VAE loss was set to a small value of 10−4.
+This is in contrast to standard VAEs where β = 1.
+Furthermore, the KL divergence increased with latent
+dimensionality, which can be interpreted as the latent vari-
+ables being more widely distributed when the dimensionality
+increases while β remains constant.
+27886
+VOLUME 14, 2026
+
+
+=== PAGE 11 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+Based on the trends in MSE and KL divergence shown
+in Table 1, we primarily used the VAE model with latent
+dimension 64 for visualization of whistle generation results
+and performance evaluation in this study.
+2) VAE-GMM WHISTLE GENERATIVE MODEL
+To quantitatively assess the generation quality of the proposed
+VAE-GMM and its similarity to the real whistle dataset,
+we adopted the FID, Recall, Precision, and F1-score. FID
+is a widely used statistical metric for evaluating the fidelity
+and diversity of synthesized images [36]. It computes the
+distance between real and generated image distributions by
+comparing the 2,048-dimensional activation vectors from the
+final pooling layer of a pre-trained Inception V3 network.
+Lower FID values indicate higher similarity between the
+real and generated data. Recall, Precision, and F1-score are
+quantified following the method proposed in [47].
+We computed FID using two approaches. The first method,
+denoted as FID1, binarized both the real and generated images
+using a threshold of 0.1 before inputting them into the Incep-
+tion V3 network. This approach aims to mitigate performance
+distortion caused by background noise or irrelevant visual
+details unrelated to the generation of whistle contour. The sec-
+ond method, FID2, fed the original grayscale images directly
+into the network without any thresholding, which is the more
+standard practice in FID evaluation. However, because the
+shape and diversity of whistle contours are the primary focus
+in our study, we considered FID1 to be a more meaningful
+evaluation metric.
+Since the Inception V3 model expects RGB input images of
+size (224,224,3), we resized the original 128×128 grayscale
+images using bicubic interpolation and replicated the single
+channel to create a three-channel RGB input.
+Table 2 reports the FID scores, Recall, Precision, F1-score
+for the VAE-GMM when the number of GMM components
+was set to 1,000, 5,000, 10,000 and 15,000. The results
+show that increasing the number of components consistently
+improved the metrics. All performance metrics showed the
+most improved results when K = 15,000.
+Table 2 also summarizes the performance analysis results
+based on the β weight of the KL divergence term in the loss
+function. Focusing on FID1 and F1-score, the performance
+was overall superior when β
+=10−4 compared to when
+β =10−2, and β =10−6.
+It is also notable that there was a substantial difference
+between FID1 and FID2, which implies that fine image details
+significantly influence FID. Given that the main objective
+of this work is to generate accurate time-frequency contours
+rather than detailed pixel-level images, we argue that FID1—
+excluding background and irrelevant variations—is a more
+appropriate performance indicator for our application.
+3) UNSUPERVISED CLUSTERING
+In this section, we evaluate the quality of unsupervised clus-
+tering using three performance metrics: the Silhouette score,
+Davies-Bouldin Index (DBI), and Calinski-Harabasz (CH)
+FIGURE 11. Variations in Silhouette score, Davies-Bouldin Index (DBI),
+and Calinski-Harabasz (CH) index relative to the number of GMM
+components. The Silhouette score exhibited a monotonic increase with K,
+while the DBI converged at K=10,000. Conversely, the CH index reached
+its peak at K=10,000 and declined thereafter. A comprehensive
+evaluation of these three metrics confirms that a component count
+between 10,000 and 12,000 is optimal for the model.
+index [44], [45], [46]. These metrics collectively measure
+both intra-cluster compactness and inter-cluster separation.
+In particular, we analyze the performance of unsupervised
+clustering with respect to the number of GMM components
+to establish a criterion for selecting an appropriate number of
+clusters.
+Although all three metrics assess clustering quality, their
+calculation methods differ. The Silhouette score measures the
+normalized difference between the average distance within
+the assigned cluster and that to the nearest neighboring clus-
+ter; thus, a higher value indicates better clustering. In contrast,
+DBI is computed as the ratio of cluster compactness to the
+distance between cluster centers, where a lower value is pre-
+ferred. The CH index is defined as the ratio of between-cluster
+variance to within-cluster variance, with higher values indi-
+cating better performance.
+Fig. 11 shows the variations of the Silhouette score, DBI,
+and CH index according to the number of GMM components.
+As the number of components increases, the Silhouette score
+increases monotonically, but the rate of increase becomes
+marginal when K ≥12,000. DBI reaches its minimum at
+K = 15,000, although it remains comparable to the values
+at K = 10,000 and K = 12,000. The CH index increases
+proportionally with K, peaks at K
+= 10,000, and then
+decreases as K continues to grow.
+Based on these observations, the appropriate number of
+components for unsupervised clustering of whistle data can
+be determined to lie between K = 10,000 and K = 12,000,
+where the CH index achieves its maximum value.
+4) CONDITIONAL GENERATION
+We
+evaluated
+the
+conditional
+generation
+performance
+from two perspectives. First, we assessed the statistical
+VOLUME 14, 2026
+27887
+
+
+=== PAGE 12 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+TABLE 3. Performance evaluation for conditional generation of whistle images.
+similarity between real and synthetic whistle data that satisfy
+a given condition, which allows us to determine how faith-
+fully the generated samples adhere to the specified condition.
+Second, we examined the statistical similarity between real
+and synthetic data across different conditions. By comparing
+these results with the evaluation metrics obtained under the
+same condition, we can indirectly verify that the proposed
+VAE-GMM-based conditional whistle generation mean-
+ingfully reflects the underlying structure of the real data
+distribution.
+Performance Evaluation 1: We evaluated the statisti-
+cal similarity between conditionally generated samples and
+real whistle data in the feature domain. For this purpose,
+we employed five quantitative metrics: 1D Wasserstein-
+1, Fréchet Feature Distance (FFD), Recall, Precision, and
+F1-score. We conducted experiments under two distinct con-
+ditions for six whistle characteristics: duration, minimum
+frequency, maximum frequency, bandwidth, start frequency,
+and end frequency. For evaluation of conditional generation,
+we used a VAE trained with L = 64, K = 10,000, and
+β = 10−4.
+To statistically evaluate the similarity between condition-
+ally generated whistles and real data in the feature domain,
+we conducted the following analysis procedure:
+1) Real dataset preparation: We prepared a real whistle
+dataset X that satisfies the target generation condition.
+This dataset contains N whistle images.
+2) Synthetic dataset generation: Under the same condi-
+tion, we generated a synthetic dataset Y, also consisting
+of N whistle images.
+3) Feature extraction: For both datasets, we extracted
+feature vectors Xf and Yf . Each vector consists of
+seven elements: duration L, minimum frequency fmin,
+maximum frequency fmax, bandwidth 1f , start fre-
+quency fstart, end frequency fend, and center frequency
+fc. These features were obtained by converting each
+whistle image into its time-frequency representation as
+illustrated in Fig. 2(c).
+4) Conditional feature similarity: To evaluate similarity
+specifically for the conditioned feature, we computed
+the 1D Wasserstein-1 distance between the correspond-
+ing real and generated feature distributions. This metric
+measures the average difference only for the condi-
+tioned feature. For example, when the condition is 30 ≤
+L ≤40, only the duration distributions of X and Y are
+compared, while the other features are ignored.
+5) Full feature-space similarity: To examine the overall
+consistency in the entire 7-dimensional feature space,
+we computed FFD, Recall, Precision, and F1-score.
+Unlike Wasserstein-1, these metrics capture global sta-
+tistical similarity between real and generated samples
+across all features, not only those used as conditions.
+The one-dimensional Wasserstein-1 distance between two
+sample sets X = {x(i)}N
+i=1 and Y = {y(i)}N
+i=1 can be computed
+in closed form as:
+W1 (X, Y) = 1
+N
+N
+X
+i=1
+x(i) −y(i)
+,
+(13)
+where x(i) and y(i) denote the i-th order statistics obtained by
+sorting the samples in X and Y in ascending order, respec-
+tively. In other words, the Wasserstein-1 distance in one
+dimension corresponds to the average absolute difference
+between the aligned quantiles of the two empirical distri-
+butions. The FFD is computed in the same manner as the
+FID but applied to the 7-dimensional feature vectors. Recall,
+Precision, and F1-score are also calculated according to the
+procedure presented in Table 2.
+Table 3 summarizes the evaluation results obtained from
+this procedure. Because the center frequency of all whistles
+is normalized to the center of the image, it was excluded
+from conditional inputs. Accordingly, we defined several
+conditions for each of the remaining six features— L, fmin,
+fmax, 1f , fstart, and fend.
+The results indicate that the conditionally generated whis-
+tles exhibit statistically comparable similarity to real whistle
+data. For duration-based conditions, the average error was
+within a few milliseconds. For frequency-related conditions
+(fmin, fmax, 1f , fstart, and fend), the mean errors ranged from
+1.46 Hz to 5.92 Hz, demonstrating close alignment with real
+data. The FFD values (0.0899-1.4866) also indicate good
+27888
+VOLUME 14, 2026
+
+
+=== PAGE 13 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 12. Confusion matrix of the log-transformed FFD values
+computed between real whistle data and conditionally generated
+samples produced by the VAE-GMM. The condition index corresponds to
+the condition numbers summarized in Table 3. This figure provides an
+integrated view of the statistical differences between real and synthetic
+whistle data across various conditions. The diagonal elements exhibit
+smaller values compared to the off-diagonal entries, indicating that the
+statistical discrepancy between real and synthetic data is relatively small
+when evaluated under the same condition.
+TABLE 4. Performance evaluation for ablation study.
+similarity, and all F1-scores exceeded 90%. Recall values
+were particularly high, reflecting the model’s ability to gener-
+ate diverse whistle patterns. Consistent with the FID analysis,
+Precision values were slightly lower than Recall.
+Performance Evaluation 2: To examine the statistical
+differences between real and synthetic whistle data under
+various conditions, we computed the FFD matrix. Fig. 12
+shows the log-transformed FFD matrix, defined as Z (i, j) =
+log (FFD (i, j)), for the 13 condition indices presented in
+Table 3. Here, i denotes the condition index of the real data
+and j denotes that of the synthetic data, corresponding to the
+x- and y-axes of Fig. 12, respectively. For example, Z (4, 5)
+represents log (FFD (4, 5)), which measures the statistical
+distance between real whistles satisfying condition 4 (34 ≤
+fmin ≤55) and synthetic whistles generated under condition 5
+(40 ≤fmin ≤53). The detailed definitions of all condition
+indices can be found in Table 3, and the diagonal entries of
+Fig. 12 correspond exactly to the log(FFD) values reported in
+Table 3.
+As shown in Fig. 12, the diagonal entries exhibit smaller
+values than the off-diagonal ones. This indicates that the sta-
+tistical discrepancy between real and synthetic data under the
+same condition is relatively small compared to that between
+different conditions. Such a relative comparison provides
+indirect evidence that the VAE-GMM generates whistle data
+consistent with the intended condition, demonstrating its
+effectiveness in conditional generation.
+An interesting observation in Fig. 12 is that the
+FFD
+values
+for
+conditions
+4
+and
+5
+are
+noticeably
+smaller than other off-diagonal elements. Specifically,
+Z(4, 5) = 3.8 and Z(5, 4) = 3.5, whereas other off-diagonal
+values range from 4.7 to 9.2. This behavior arises because the
+minimum-frequency range of condition 5 is a subset of that
+of condition 4, making the two datasets inherently similar.
+Consequently, the relatively low values of Z(4, 5) and Z(5, 4)
+are consistent with the statistical relationship between these
+conditions. These results collectively demonstrate that the
+FFD metric sensitively captures feature-space similarity and
+that the conditional generation of the VAE-GMM is highly
+effective, as evidenced by the structure of Fig. 12.
+5) ABLATION STUDY
+The proposed whistle generation VAE-GMM consists of
+three key components: a VAE, a GMM, and a WGAN-GP.
+To verify the contribution of each module, we conducted
+an ablation study by comparing four configurations: (1) a
+standard VAE, (2) WGAN-GP, (3) a VAE-GMM without
+WGAN-GP, and (4) a VAE-GMM with WGAN-GP. This
+comparison allows us to evaluate the effectiveness of multi-
+modal distribution modeling using GMM and the fine-quality
+enhancement effect achieved by WGAN-GP.
+Table 4 summarizes the FID, Recall, and Precision results
+for the four network configurations. As shown in the table,
+the VAE-GMM with WGAN-GP achieved the best per-
+formance, with an FID of 2.6767, Recall of 87.21%, and
+Precision of 91.99%. Furthermore, as GMM and WGAN-GP
+were progressively incorporated into the standard VAE,
+the overall performance improved consistently. The supe-
+rior performance of the VAE-GMM compared to the basic
+VAE indicates its effectiveness in capturing greater diversity
+in the latent variables. Additionally, the further improve-
+ment observed after applying WGAN-GP suggests that the
+critic indicates its effectiveness in capturing greater diversity
+in the latent variables. Additionally, the further improve-
+ment observed after applying WGAN-GP suggests that the
+critic network of WGAN-GP contributes to enhancing the
+fine-grained quality of the generated data.
+6) PERFORMANCE COMPARISON
+To compare the performance of the proposed method with
+other generative models, we considered models trainable on
+the false killer whale whistle dataset we constructed. As illus-
+trated in Fig. 1, the whistle data built in this study exhibits the
+characteristics of sparse data, where the majority of pixel val-
+ues are zero. This sparsity consequently posed difficulties in
+VOLUME 14, 2026
+27889
+
+
+=== PAGE 14 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+TABLE 5. Performance comparison of existing methods and VAE-GMM.
+TABLE 6. Computational cost and generation speed.
+TABLE 7. Network architecture of variational autoencoder.
+TABLE 8. Network architecture of critic network.
+training, depending on the deep learning model architecture
+used.
+Conventional adversarial models, such as WhistleGAN
+(DCGAN) [20], [48] and WGAN-GP [49], were unable to
+independently generate valid whistle data. These models
+consistently yielded suboptimal results, primarily outputting
+near zero-pixel values that lacked meaningful structures.
+To mitigate this vanishing gradient issue, we re-trained
+the WhistleGAN from scratch by incorporating Label
+TABLE 9. Network architecture of diffusion model.
+Smoothing and Label Flipping techniques. These adjustments
+were specifically designed to prevent the premature satura-
+tion of the Discriminator, thereby facilitating the emergence
+of valid whistle contours.
+In contrast, the Latent Diffusion Model (LDM)—which
+generates the latent representations of a VAE through a
+diffusion process—demonstrated the capability to generate
+high-fidelity whistle sounds without any additional heuris-
+tic manipulations. Detailed information regarding the neural
+network architecture and training methodology of the LDM
+is provided in Appendix D.
+Table 5 presents a comparative performance analysis of
+VAE-GMM, WhistleGAN, WGAN-GP, and LDM. The com-
+parison indicates that the VAE-GMM achieved superior
+performance compared to other models. In Table 5, T denotes
+the number of time-steps in the LDM, where performance
+generally improves as T increases. The superior performance
+of VAE-GMM over LDM is likely due to the fact that the
+Diffusion Model’s U-Net backbone is typically optimized for
+effective noise removal in high-dimensional tensors, which
+are usually larger than 64 dimensions.
+7) COMPUTATIONAL COST
+We evaluated the computational cost of each whistle
+sound generation model based on the number of learnable
+parameters, Floating-Point Operations Per Second (FLOPs),
+single-image inference latency, and batch latency. For the
+computational cost assessment, we only considered the neu-
+ral network components that directly contribute to image
+generation. For instance, modules such as the WGAN-GP
+discriminator or the VAE encoder, which are not essential
+for the final generative process, were excluded from the cost
+calculation.
+In calculating the FLOPs for each model, we solely consid-
+ered the layer types that constitute a significant portion of the
+total operations. The layers included in the FLOPs computa-
+tion were the fully connected layer, transposed-convolution,
+27890
+VOLUME 14, 2026
+
+
+=== PAGE 15 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+FIGURE 13. Conditional whistle generation results 1. (a) Length
+condition: 51-60 samples, (b) End frequency condition: 47-56 bin index,
+(c) Start frequency condition: 85-94 bin index.
+batch normalization, ReLU, sigmoid, and max-pooling layer;
+all other layers were intentionally omitted.
+To ensure a fair comparison, the generation speeds of all
+models listed in Table 6 were evaluated under identical hard-
+ware environments and optimization settings. The evaluation
+was performed on a desktop system equipped with an Intel
+Core i7-13700 CPU, an NVIDIA GeForce GT 1030 GPU,
+and 64 GB of RAM. The inference and batch latencies
+were calculated by averaging 200 trials, excluding the initial
+50 warm-up runs out of a total of 250 attempts. To ensure
+measurement stability and consistent thermal states, a
+0.5-second settling time was introduced between consecutive
+generation cycles. All primary computations were configured
+to be executed via GPU acceleration.
+As presented in Table 6, the VAE-GMM achieved an infer-
+ence latency of 1.7 ms for a single image, and remarkable
+throughputs of 0.11 ms and 54 us for batch sizes of 16 and
+32, respectively. The computational speed of the VAE-GMM
+was found to be comparable to those of WGAN-GP and
+FIGURE 14. Conditional whistle generation results 2. (a) Bandwidth
+condition: 20-23 bins, (b) Minimum frequency condition: 40-50 bin index,
+(c) Maximum frequency condition: 80-90 bin index.
+WhistleGAN. This comparable performance is attributed to
+the architectural similarity between the VAE decoder and the
+GAN generators used in this study.
+The LDM incurs a significantly higher computational
+overhead than other models because it generates data by iter-
+atively refining the noisy latent variable via a U-Net. In terms
+of FLOPs, LDM necessitates a minimum of 42.63 times
+to a maximum of 170.49 times more operations than the
+VAE-GMM.
+Although the computational cost of LDM can be allevi-
+ated by reducing the total number of time-steps T, it still
+maintains a substantially higher computational load than
+VAE-GMM. Given that the FLOPs per time-step of the U-Net
+is 95.02 MFLOPs, even a reduction of the time-steps to T =
+100 results in LDM’s total FLOPs being 17.05 times greater
+than those of VAE-GMM. However, decreasing the number
+of time-steps in LDM inherently sacrifices generation quality,
+rendering this approach unsuitable. As confirmed in Table 5,
+VOLUME 14, 2026
+27891
+
+
+=== PAGE 16 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+the image generation quality of LDM is highly sensitive to
+the number of time-steps.
+V. DISCUSSIONS
+The proposed VAE-GMM-based whistle generation method
+has two major limitations, as described below:
+First, whistle signal generation currently requires a
+four-step conversion process—from whistle image genera-
+tion to waveform synthesis. Since our ultimate goal is to
+generate whistle waveforms that can be directly transmitted
+through an underwater acoustic projector, a more efficient
+future approach would be to train a model capable of gen-
+erating the transmit waveform directly.
+Second, the proposed VAE-GMM learns only the contour
+shape of whistles with their center frequencies removed.
+To transmit signals through an actual underwater acoustic
+projector, an additional method for assigning center fre-
+quencies is required. We attempted to train the model using
+spectrogram images that include the center frequency; how-
+ever, this approach was found to be ineffective.
+Specifically,
+when
+the
+center
+frequency
+was
+not
+removed—meaning the whistle contour could shift ver-
+tically within the image—the data variability increased
+substantially. As a result, the VAE reconstruction loss was
+sufficiently reduced only when the latent dimension was
+set to much higher values (e.g., 128 or 256) compared to
+the proposed 64-dimensional configuration. However, when
+the latent dimension exceeded 128, we found that model-
+ing the latent space with much more than 10,000 Gaussian
+components became computationally impractical due to the
+computational complexity of the EM algorithm.
+Therefore, we expect that assigning the center frequency of
+the data contributing to each Gaussian component and sam-
+pling the center frequency from this distribution would serve
+as an effective alternative. We leave a detailed investigation
+of this issue for future work.
+VI. CONCLUSION
+This paper proposed a VAE-GMM-based method for gener-
+ating whistle image data of false killer whale. The proposed
+approach explicitly models the latent space of whistle images
+as a mixture of Gaussians, enabling conditional generation
+through analysis of component-wise features, such as min-
+imum and maximum frequency, start and end frequency,
+bandwidth, center frequency, and duration. It was shown that
+the conditional probability distribution can be approximately
+estimated based on the characteristics of the selected Gaus-
+sian components. Furthermore, the analytical tractability of
+the mixture density enables the use of MAP estimation for
+potential applications in unsupervised clustering and classifi-
+cation.
+The proposed VAE-GMM supports fast whistle data gener-
+ation, comparable to GAN-based methods, while offering an
+intuitive mechanism to control the generation process through
+the mixture components. The method demonstrated com-
+petitive performance, suggesting its effectiveness for future
+applications in biomimetic underwater communication sys-
+tems.
+We anticipate that the proposed VAE-GMM-based whistle
+generation method will serve as an effective tool for the
+linguistic analysis and understanding of cetacean acoustic
+signals. A systematic method for structuring these signals
+is essential for their linguistic interpretation. While conven-
+tional studies have predominantly relied on manual pattern
+analysis through direct observation, our approach offers a
+novel framework for structuring whistle morphologies in
+an unsupervised manner. We believe that this method will
+provide a foundational basis for future research, such as iden-
+tifying correlations between distinct whistles and establishing
+links between acoustic signals and their behavioral contexts.
+APPENDIX A
+LEARNING VARIATIONAL AUTOENCODER
+A. NETWORK ARCHITECTURE
+The network architectures of the VAE and the critic, depend-
+ing on the latent space dimension L, are summarized in
+Tables 7 and 8, respectively.
+B. TRAINING CONFIGURATION AND NETWORK
+ARCHITECTURE
+The training of VAE-GMM was conducted using MATLAB
+R2024a, and computations were performed in parallel across
+seven NVIDIA V100 GPUs.
+For VAE training, the learning rate was set to 10−3, and
+the β coefficient was set to 10−4. The mini-batch size was
+128 per GPU, resulting in a total of 896 samples per batch.
+The WGAN-GP weight λ was set to 1, and the critic was
+trained three times per iteration of the VAE. The total number
+of training epochs was 300. The gradient penalty coefficient
+λGP was set to 5. The learning rate for the critic was 2×10−4,
+with a gradient decay factor of 0 and a squared gradient decay
+factor of 0.9. The Adam optimizer was employed for training
+both the VAE and the critic network.
+During the training process, a data augmentation technique
+was applied in which each image was randomly rotated by
+0◦, 90◦, 180◦, or 270◦with equal probability. This approach
+was adopted to prevent the VAE from overly focusing on
+horizontal line features, which can be prevalent in whistle
+image data, and to encourage balanced learning of diverse
+directional features, such as vertical lines.
+APPENDIX B
+PARAMETER ESTIMATION OF GAUSSIAN MIXTURE
+MODEL
+The parameters of the Gaussian mixture model consist of the
+mean vectors, covariance matrices, and mixing coefficients
+corresponding to the specified Gaussian components. These
+parameters are estimated using the EM algorithm. In this
+study, the maximum number of EM iterations was set to
+1,500, and the probability tolerance for early stopping was
+set to 10−8.
+27892
+VOLUME 14, 2026
+
+
+=== PAGE 17 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+APPENDIX C
+CONDITIONAL WHISTLE GENERATION RESULTS
+Fig. 13 and 14 show the results of conditional whistle genera-
+tion under six different conditions—whistle length, end/start
+frequency, maximum/minimum frequency, and bandwidth.
+For each case, 100 generated whistle samples are overlaid in
+the left panel, and the corresponding histogram of the target
+feature is shown in the right panel. The center frequency was
+excluded from the conditional generation results, as it was
+normalized during the preprocessing of the whistle dataset
+used in this study.
+APPENDIX D
+IMPLEMENTATION OF THE LATENT DIFFUSION MODEL
+To compare the performance of the proposed VAE-GMM-
+based whistle generation method with a widely recognized
+generative framework, we applied the LDM to the whistle
+image dataset constructed in this study. The U-Net backbone
+of the LDM follows the network architecture presented in
+Table 9 and takes an 8 × 8×1 latent image as input to predict
+the noise residual. The latent vectors used for diffusion-based
+generation were extracted from a VAE trained with a KL
+divergence weight of 10−4.
+For training the diffusion model, the hyperparameters were
+configured as follows: a minibatch size of 128, 300 training
+epochs, and a learning rate of 0.0005. The variance schedule
+parameters were set to βmin = 10−4 and βmax = 0.02, with a
+linear schedule applied. The U-Net was trained on a desktop
+equipped with an NVIDIA GeForce GT 1030 GPU, an Intel
+Core i7-13700 CPU, and 64 GB of RAM.
+REFERENCES
+[1] J. Du, Y. Zhang, and G. Chen, ‘‘Bionic covert hydroacoustic spread spec-
+trum communication based on improved adaptive filtering algorithm,’’ in
+Proc. 4th Int. Conf. Neural Net., 2024, pp. 1244–1249.
+[2] Z. Li, J. Jiang, G. Chen, Q. Yao, L. Huang, X. Hou, Z. Li, and F. Duan,
+‘‘Bio-inspired secure underwater acoustic communication by quasi-
+orthogonal keying,’’ Appl. Acoust., vol. 218, Mar. 2024, Art. no. 109907,
+doi: 10.1016/j.apacoust.2024.109907.
+[3] Z. Li, J. Jiang, G. Chen, C. Li, Q. Yao, X. Fu, and F. Duan, ‘‘Bio-inspired
+secure underwater acoustic communication strategy by shifting the natural
+whale whistle phase,’’ Appl. Acoust., vol. 214, Nov. 2023, Art. no. 109691,
+doi: 10.1016/j.apacoust.2023.109691.
+[4] C. Wang, G. Zhu, S. Tang, J. Yin, L. Guo, X. Sheng, and M. Li,
+‘‘Directional bionic underwater communication method using a parametric
+acoustic array and recursive filtering,’’ Appl. Acoust., vol. 191, Mar. 2022,
+Art. no. 108665, doi: 10.1016/j.apacoust.2022.108665.
+[5] A. ElMoslimany, M. Zhou, T. M. Duman, and A. Papandreou-Suppappola,
+‘‘An underwater acoustic communication scheme exploiting biologi-
+cal sounds,’’ Wireless Commun. Mobile Comput., vol. 16, no. 15,
+pp. 2194–2211, Jun. 2016, doi: 10.1002/wcm.2676.
+[6] H. Lee, J. Ahn, Y. Kim, S. Lee, and J. Chung, ‘‘Time-frequency modulation
+based mimicking dolphin whistle for covert underwater acoustic communi-
+cation,’’ Jpn. J. Appl. Phys., vol. 59, no. SK, May 2020, Art. no. SKKF03,
+doi: 10.35848/1347-4065/ab87f0.
+[7] J. Ahn, H. Lee, Y. Kim, W. Kim, and J. Chung, ‘‘Biomimicking covert com-
+munication by time-frequency shift modulation for increasing mimicking
+and BER performances,’’ Sensors, vol. 21, no. 6, p. 2184, Mar. 2021, doi:
+10.3390/s21062184.
+[8] J. Jiang, C. Li, X. Wang, Z. Sun, X. Fu, and F. Duan, ‘‘Covert underwater
+communication based on combined encoding of diverse time-frequency
+characteristics of sperm whale clicks,’’ Appl. Acoust., vol. 171, Jan. 2021,
+Art. no. 107660, doi: 10.1016/j.apacoust.2020.107660.
+[9] C. Li, J. Jiang, X. Wang, Z. Sun, Z. Li, X. Fu, and F. Duan, ‘‘Bionic
+covert underwater communication focusing on the overlapping of whistles
+and clicks generated by different cetacean individuals,’’ Appl. Acoust.,
+vol. 183, Dec. 2021, Art. no. 108279, doi: 10.1016/j.apacoust.2021.
+108279.
+[10] S. Liu, T. Ma, G. Qiao, L. Ma, and Y. Yin, ‘‘Biologically inspired
+covert underwater acoustic communication by mimicking dolphin
+whistles,’’ Appl. Acoust., vol. 120, pp. 120–128, May 2017, doi:
+10.1016/j.apacoust.2017.01.018.
+[11] J. Ahn, H. Lee, Y. Kim, W. Kim, and J. Chung, ‘‘Machine learning based
+biomimetic underwater covert acoustic communication method using dol-
+phin whistle contours,’’ Sensors, vol. 20, no. 21, p. 6166, Oct. 2020, doi:
+10.3390/s20216166.
+[12] Y. Song and D. P. Kingma, ‘‘How to train your energy-based models,’’
+2021, arXiv:2101.03288.
+[13] D. P. Kingma and M. Welling, ‘‘Auto-encoding variational Bayes,’’ 2013,
+arXiv:1312.6114.
+[14] I. Kobyzev, S. J. D. Prince, and M. A. Brubaker, ‘‘Normalizing flows:
+An introduction and review of current methods,’’ IEEE Trans. Pattern
+Anal. Mach. Intell., vol. 43, no. 11, pp. 3964–3979, Nov. 2021, doi:
+10.1109/TPAMI.2020.2992934.
+[15] P. Li, M. A. Roch, H. Klinck, E. Fleishman, D. Gillespie, E.-
+M. Nosal, Y. Shiu, and X. Liu, ‘‘Learning stage-wise GANs for
+whistle
+extraction
+in
+time-frequency
+spectrograms,’’
+IEEE
+Trans.
+Multimedia, vol. 25, pp. 9302–9314, 2023, doi: 10.1109/TMM.2023.
+3251109.
+[16] J. Ho, ‘‘Denoising diffusion probabilistic models,’’ Proc. Adv. Neural Inf.
+Process. Syst. (NeurIPS), vol. 33, 2024, pp. 6840–6851.
+[17] R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and B. Ommer,
+‘‘High-resolution image synthesis with latent diffusion models,’’ in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), Jun. 2022,
+pp. 10674–10685.
+[18] L. Zhang, H.-N. Huang, L. Yin, B.-Q. Li, D. Wu, H.-R. Liu, X.-F. Li,
+and Y.-L. Xie, ‘‘Dolphin vocal sound generation via deep WaveGAN,’’
+J. Electron. Sci. Technol., vol. 20, no. 3, Sep. 2022, Art. no. 100171, doi:
+10.1016/j.jnlest.2022.100171.
+[19] H. Wang, X. Wu, Z. Wang, Y. Hao, C. Hao, X. He, and Q. Hu, ‘‘Low-
+resource generation method for few-shot dolphin whistle signal based on
+generative adversarial network,’’ J. Mar. Sci. Eng., vol. 11, no. 5, p. 1086,
+May 2023, doi: 10.3390/jmse11051086.
+[20] Y. Kim, S. Seol, H. Lee, G. Park, and J. Chung, ‘‘WhistleGAN
+for biomimetic underwater acoustic covert communication,’’ Elec-
+tronics, vol. 13, no. 5, p. 964, Mar. 2024, doi: 10.3390/electronics
+13050964.
+[21] Y.
+Kossale,
+M.
+Airaj,
+and
+A.
+Darouichi,
+‘‘Mode
+collapse
+in
+generative adversarial networks: An overview,’’ in Proc. 8th Int.
+Conf. Optim. Appl. (ICOA), Genoa, Italy, Oct. 2022, pp. 1–6, doi:
+10.1109/icoa55659.2022.9934291.
+[22] N. Dilokthanakul, P. A. M. Mediano, M. Garnelo, M. C. H. Lee,
+H. Salimbeni, K. Arulkumaran, and M. Shanahan, ‘‘Deep unsuper-
+vised clustering with Gaussian mixture variational autoencoders,’’ 2016,
+arXiv:1611.02648.
+[23] Z. Jiang, Y. Zheng, H. Tan, B. Tang, and H. Zhou, ‘‘Variational deep
+embedding: An unsupervised and generative approach to clustering,’’
+2016, arXiv:1611.05148.
+[24] J. M. Tomczak and M. Welling, ‘‘VAE with a VampPrior,’’ in Proc. 21st Int.
+Conf. Artif. Intell. Statist. (AISTATS), vol. 84, Apr. 2017, pp. 1214–1223.
+[25] C. Guo, J. Zhou, H. Chen, N. Ying, J. Zhang, and D. Zhou,
+‘‘Variational
+autoencoder
+with
+optimizing
+Gaussian
+mixture
+model priors,’’ IEEE Access, vol. 8, pp. 43992–44005, 2020, doi:
+10.1109/ACCESS.2020.2977671.
+[26] J. Bai, S. Kong, and C. P. Gomes, ‘‘Gaussian mixture variational
+autoencoder with contrastive learning for multi-label classification,’’
+in
+Proc.
+39th
+Int.
+Conf.
+Mach.
+Learn.
+(ICML),
+Jul.
+2021,
+pp. 1383–1398.
+[27] W. Wang, Z. Gan, H. Xu, R. Zhang, G. Wang, D. Shen, C. Chen, and
+L. Carin, ‘‘Topic-guided variational autoencoders for text generation,’’
+2019, arXiv:1903.07137.
+[28] Q. Zhao, N. Honnorat, E. Adeli, A. Pfefferbaum, E. V. Sullivan, and
+K. M. Pohl, ‘‘Variational autoencoder with truncated mixture of Gaussians
+for functional connectivity analysis,’’ in Proc. Int. Conf. Inf. Process. Med.
+Imag. (IPMI), vol. 11492, Jun. 2019, pp. 867–879, doi: 10.1007/978-3-
+030-20351-1_68.
+VOLUME 14, 2026
+27893
+
+
+=== PAGE 18 ===
+G.-H. Park et al.: Generative Model for Cetacean Whistles Using VAE and Mixture of Gaussians
+[29] Hawaiian Islands Cetacean and Ecosystem Assessment Survey (HICEAS)
+Towed Array Data. Edited and Annotated for the 9th International Work-
+shop on Detection, Classification, Localization, and Density Estimation
+of Marine Mammals Using Passive Acoustics (DCLDE 2022), NOAA
+Pacific Islands Fisheries Science Center, Honolulu, HI, USA, 2022, doi:
+10.25921/e12p-gj65.
+[30] P. Li, X. Liua, K. J. Palmer, E. Fleishman, D. Gillespie, E.-M. Nosal,
+Y. Shiu, H. Klinck, D. Cholewiak, T. Helble, and M. A. Roch, ‘‘Learning
+deep models from synthetic data for extracting dolphin whistle contours,’’
+2020, arXiv:2005.08894.
+[31] G.-H. Park, J. Ahn, W. Kim, I. S. Kim, and D. H. Lee, ‘‘Implementation
+of a neural network for cetacean whistle frequency detection based on data
+synthesis,’’ in Proc. Winter Conf. Korean Inst. Commun. Inf. Sci. (KICS),
+Gangwon, South Korea, 2024, pp. 690–691.
+[32] G.-H. Park, J. Ahn, W. Kim, S. Lee, and D. Lee, ‘‘A design of MCA-CFAR
+detector for extraction of cetacean whistle contours,’’ in Proc. Winter Conf.
+Korean Inst. Commun. Inf. Sci. (KICS), Gangwon, South Korea, 2024,
+pp. 1474–1475.
+[33] G. H. Park, I. S. Kim, S. G. Lee, and D. H. Lee, ‘‘Detection and tracking-
+based dolphin whistle extraction method,’’ in Proc. Korea Inst. Mil. Sci.
+Technol. Annu. Conf., Jeju, South Korea, 2024, pp. 382–383.
+[34] GitHub Repository. (2016). Ganhacks. Accessed: Jun. 23, 2025. [Online].
+Available: https://github.com/soumith/ganhacks
+[35] C. M. Bishop, Pattern Recognition and Machine Learning. New York, NY,
+USA: Springer, 2006.
+[36] M. Heusel, H. Ramsauer, T. Unterthiner, B. Nessler, and S. Hochreiter,
+‘‘GANs trained by a two time-scale update rule converge to a local
+Nash equilibrium,’’ in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS),
+vol. 30, 2017, pp. 6626–6637. [Online]. Available: https://proceedings.
+neurips.cc/paper/2017/file/8a1d694707eb0fefe65871369074926d-Paper.
+pdf
+[37] S. Baumann-Pickering, A. Simonis, E. Oleson, R. Baird, M. Roch, and S.
+Wiggins, ‘‘False killer whale and short-finned pilot whale acoustic identi-
+fication,’’ Endangered Species Res., vol. 28, no. 2, pp. 97–108, Jul. 2015,
+doi: 10.3354/esr00685.
+[38] A. Stirn and D. A. Knowles, ‘‘The VampPrior mixture model,’’ in Proc.
+28th Int. Conf. Artif. Intell. Statist. (AISTATS), May 2024, pp. 1369–1377.
+[39] J. Zhou, Y. Liu, and X. Du, ‘‘HGMVAE: Hierarchical disentanglement in
+Gaussian mixture variational autoencoder,’’ Vis. Comput., vol. 40, no. 10,
+pp. 7491–7502, Apr. 2024, doi: 10.1007/s00371-024-03338-x.
+[40] J. Ho and T. Salimans, ‘‘Classifier-free diffusion guidance,’’ in Proc.
+NeurIPS Workshop Deep Generative Models Downstream Appl., 2022.
+[41] M. Mirza and S. Osindero, ‘‘Conditional generative adversarial nets,’’
+2014, arXiv:1411.1784.
+[42] R. Rio, ‘‘Acoustic recording of false killer whale (Pseudorca crassi-
+dens) from Mexico (L),’’ J. Acoust. Soc. Amer., vol. 153, no. 4, p. 2019,
+Apr. 2023, doi: 10.1121/10.0017726.
+[43] L. D. D. Figueiredo, I. Maciel, F. M. Viola, M. A. Savi, and S. M.
+Simão, ‘‘Nonlinear features in whistles produced by the short-beaked
+common dolphin (Delphinus delphis) off Southeastern Brazil,’’ J. Acoust.
+Soc. Amer., vol. 153, no. 4, p. 2436, Apr. 2023, doi: 10.1121/10.
+0017883.
+[44] L. Kaufman and P. J. Rousseeuw, Finding Groups in Data: An Intro-
+duction to Cluster Analysis. Hoboken, NJ, USA: Wiley, 1990, doi:
+10.1002/9780470316801.
+[45] D. L. Davies and D. W. Bouldin, ‘‘A cluster separation measure,’’ IEEE
+Trans. Pattern Anal. Mach. Intell., vols. PAMI-1, no. 2, pp. 224–227,
+Apr. 1979, doi: 10.1109/TPAMI.1979.4766909.
+[46] T. Calinski and J. Harabasz, ‘‘A dendrite method for cluster analysis,’’
+Commun. Statist.-Theory Methods, vol. 3, no. 1, pp. 1–27, 1974, doi:
+10.1080/03610927408827101.
+[47] T. Kynkäänniemi, T. Karras, S. Laine, J. Lehtinen, and T. Aila,
+‘‘Improved precision and recall metric for assessing generative mod-
+els,’’ in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS), vol. 32, 2019,
+pp. 3927–3936.
+[48] A. Radford, L. Metz, and S. Chintala, ‘‘Unsupervised representation
+learning with deep convolutional generative adversarial networks,’’ 2015,
+arXiv:1511.06434.
+[49] I. Gulrajani, F. Ahmed, M. Arjovsky, V. Dumoulin, and A. Courville,
+‘‘Improved training of Wasserstein GANs,’’ in Proc. Adv. Neural
+Inf. Process. Syst. (NeurIPS), vol. 30, 2017, pp. 5769–5779. [Online].
+Available: https://proceedings.neurips.cc/paper/2017/file/892c3b1c6dccd
+52936e27cbd0ff683d6-Paper.pdf
+GEUN-HO
+PARK
+received the B.S., M.S.,
+and Ph.D. degrees in electronic and electri-
+cal engineering from Pusan National Univer-
+sity, Busan, South Korea, in 2013, 2015, and
+2020, respectively. From 2020 to 2021, he was
+a Researcher with Korea Research Institute for
+Defense Technology Planning and Advancement,
+Jinju, South Korea. From 2021 to 2023, he was
+a Senior Researcher with Hanwha Systems. He is
+currently a Senior Researcher with the Agency for
+Defense Development, Changwon-si, South Korea. His research interests
+include deep learning, deep generative models, array signal processing,
+underwater acoustic signal processing, and sonar/radar signal processing.
+JONGMIN AHN received the B.S., M.S., and
+Ph.D. degrees in electronics engineering from Inha
+University, Incheon, South Korea, in 2015, 2017,
+and 2021, respectively. He is currently a Senior
+Researcher with the Agency for Defense Devel-
+opment, Changwon-si, South Korea. His research
+interests include underwater acoustic communica-
+tion, wireless communication, covert communica-
+tion, signal processing, and machine learning.
+WANJIN KIM received the B.S., M.S., and Ph.D.
+degrees in electronics engineering from Pusan
+National University, Busan, South Korea, in 2005,
+2007, and 2011, respectively. He is currently a
+Principal Researcher with the Agency for Defense
+Development, Changwon-si, South Korea. His
+research interests include radar/sonar systems,
+array signal processing, underwater acoustic com-
+munication, and covert communication.
+INSOO
+KIM
+received the B.S., M.S., and
+Ph.D. degrees from the School of Mechanical
+Engineering, Pusan National University, Busan,
+South Korea, in 1997, 1999, and 2004, respec-
+tively. He is currently a Principal Researcher with
+the Agency of Defense Development, Changwon-
+si, South Korea. His research interests include
+sonar signal processing and underwater acoustic
+communication.
+DONG-HUN LEE (Member, IEEE) received the
+B.S. and M.S. degrees in electronic and electrical
+engineering from Kyungpook National University,
+Daegu, South Korea, in 1994 and 1996, respec-
+tively, and the Ph.D. degree from the Department
+of Electronics Engineering, Pusan National Uni-
+versity, Pusan, South Korea, in 2017. Since 1996,
+he has been a Chief Researcher with the Agency
+for Defense Development, South Korea. His main
+research interests include the area of radar/sonar
+signal processing, machine learning, deep learning, underwater acoustic
+communication, and covert communication.
+27894
+VOLUME 14, 2026
+
+
