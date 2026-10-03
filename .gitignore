@@ -6,6 +6,10 @@
 # Raw Audio Datasets (64+ GB)
 # -----------------------------------------------------------------------------
 encounter_191_audio/
+encounter_191_audio
+/encounter_191_audio/
+raw_audio/
+audio/
 *.flac
 *.wav
 *.mp3
