@@ -364,6 +364,9 @@ def run_full_pipeline(cfg, config_path, args_holder=None):
         normalization = cfg.get("image", {}).get("normalization")
         file_img_records = []
         file_qc_records = []
+        batch_images = []
+        batch_meta = []
+        batch_qc = []
         for nfm_item in supp_nfm:
             img_rec = generate_and_save_image(
                 nfm_item, cfg, config_path, s7_out, save_files=export_npy)
@@ -432,9 +435,22 @@ def run_full_pipeline(cfg, config_path, args_holder=None):
                 "mean_centroid_error_bins": qc_res.get("mean_centroid_error_bins"),
                 "peak_intensity": qc_res.get("peak_intensity"),
             }
-            writer.append_sample(img_rec["image_data"], meta_row, qc_row, fn)
-            del img_rec["image_data"]
-            gc.collect()
+            batch_images.append(img_rec["image_data"])
+            batch_meta.append(meta_row)
+            batch_qc.append(qc_row)
+
+            if len(batch_images) >= 500:
+                writer.append_batch(batch_images, batch_meta, batch_qc, fn)
+                batch_images.clear()
+                batch_meta.clear()
+                batch_qc.clear()
+
+        if batch_images:
+            writer.append_batch(batch_images, batch_meta, batch_qc, fn)
+            batch_images.clear()
+            batch_meta.clear()
+            batch_qc.clear()
+
 
         if file_img_records:
             append_records_to_csv(img_csv, file_img_records, list(file_img_records[0].keys()))

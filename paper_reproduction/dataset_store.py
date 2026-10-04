@@ -202,51 +202,77 @@ class VersionedDatasetWriter:
         os.replace(tmp, self.state_path)
 
     # -- ingest ------------------------------------------------------------
-    def append_sample(self, image_2d, meta_row, qc_row, source_file):
-        """Append one validated 128x128 float32 image + its rows.
+    def append_batch(self, images_2d, meta_rows, qc_rows, source_file):
+        """Append a batch of validated 128x128 float32 images + their rows in a single I/O operation.
 
-        image_2d: (128,128) or (128,128,1) float32 in [0,1]. Only shape/dtype/
-        finiteness are checked here (storage invariants); science untouched.
+        images_2d: list of (128,128) or (128,128,1) float32 in [0,1], or an (N,128,128,1) array.
+        Only shape/dtype/finiteness are checked here (storage invariants); science untouched.
         """
-        arr = np.asarray(image_2d, dtype=np.float32)
-        if arr.shape == (128, 128):
-            arr = arr[:, :, None]
-        if arr.shape != (128, 128, 1):
-            raise ValueError(f"Bad image shape {arr.shape}, expected (128,128,1)")
-        if arr.dtype != np.float32:
-            raise ValueError(f"Bad image dtype {arr.dtype}")
-        if not np.all(np.isfinite(arr)):
-            raise ValueError("Non-finite image values")
-        if float(np.min(arr)) < -1e-6 or float(np.max(arr)) > 1.0 + 1e-6:
-            raise ValueError(
-                f"Image outside [0,1]: min={np.min(arr)} max={np.max(arr)}"
-            )
+        if not images_2d:
+            return []
+        
+        arr_list = []
+        for img in images_2d:
+            arr = np.asarray(img, dtype=np.float32)
+            if arr.shape == (128, 128):
+                arr = arr[:, :, None]
+            if arr.shape != (128, 128, 1):
+                raise ValueError(f"Bad image shape {arr.shape}, expected (128,128,1)")
+            if arr.dtype != np.float32:
+                raise ValueError(f"Bad image dtype {arr.dtype}")
+            if not np.all(np.isfinite(arr)):
+                raise ValueError("Non-finite image values")
+            if float(np.min(arr)) < -1e-6 or float(np.max(arr)) > 1.0 + 1e-6:
+                raise ValueError(
+                    f"Image outside [0,1]: min={np.min(arr)} max={np.max(arr)}"
+                )
+            arr_list.append(arr)
 
-        idx = self.n
+        n_batch = len(arr_list)
+        batch_arr = np.stack(arr_list, axis=0)  # shape (n_batch, 128, 128, 1)
+        start_idx = self.n
+        end_idx = start_idx + n_batch
+
         with h5py.File(self.h5_path, "a") as f:
             d = f["/images"]
-            d.resize((idx + 1, 128, 128, 1))
-            d[idx] = arr
+            d.resize((end_idx, 128, 128, 1))
+            d[start_idx:end_idx] = batch_arr
 
-        image_id = f"{self.version}-{idx:07d}"
-        meta_row = dict(meta_row)
-        meta_row["image_id"] = image_id
-        meta_row["dataset_index"] = idx
-        qc_row = dict(qc_row)
-        qc_row["image_id"] = image_id
-        qc_row["dataset_index"] = idx
+        meta_lines = []
+        qc_lines = []
+        res = []
+        for i in range(n_batch):
+            idx = start_idx + i
+            image_id = f"{self.version}-{idx:07d}"
+            meta_row = dict(meta_rows[i])
+            meta_row["image_id"] = image_id
+            meta_row["dataset_index"] = idx
+            qc_row = dict(qc_rows[i])
+            qc_row["image_id"] = image_id
+            qc_row["dataset_index"] = idx
+
+            meta_lines.append(json.dumps(meta_row, default=str))
+            qc_lines.append(json.dumps(qc_row, default=str))
+
+            if self.previews_written < self.preview_count:
+                self._write_preview(arr_list[i][:, :, 0], idx)
+                self.previews_written += 1
+
+            res.append((image_id, idx))
 
         with open(self.meta_jsonl, "a", encoding="utf-8") as f:
-            f.write(json.dumps(meta_row, default=str) + "\n")
+            f.write("\n".join(meta_lines) + "\n")
         with open(self.qc_jsonl, "a", encoding="utf-8") as f:
-            f.write(json.dumps(qc_row, default=str) + "\n")
+            f.write("\n".join(qc_lines) + "\n")
 
-        if self.previews_written < self.preview_count:
-            self._write_preview(arr[:, :, 0], idx)
-            self.previews_written += 1  # note: recount on resume below
+        self.n = end_idx
+        return res
 
-        self.n += 1
-        return image_id, idx
+    def append_sample(self, image_2d, meta_row, qc_row, source_file):
+        """Append one validated 128x128 float32 image + its rows."""
+        res = self.append_batch([image_2d], [meta_row], [qc_row], source_file)
+        return res[0]
+
 
     def _write_preview(self, img_hw, idx):
         try:

@@ -341,23 +341,47 @@ def derive_h1(config_path, output_derived_path=None):
     save_yaml(derived_data, output_derived_path)
     return derived_data
 
+_ASSERT_FRESH_CACHE = {}
+
 def assert_fresh(config_path, derived_path=None):
     """Assert derived_h1.yaml exists and matches config fingerprint."""
+    cfg_abs = os.path.abspath(config_path) if config_path else None
+    cfg_mtime = os.path.getmtime(cfg_abs) if cfg_abs and os.path.exists(cfg_abs) else None
+    
+    if derived_path is None:
+        # Check if derived_path can be resolved from cache or default
+        if cfg_abs:
+            derived_path = os.path.join(os.path.dirname(cfg_abs), "derived_h1.yaml")
+    
+    der_abs = os.path.abspath(derived_path) if derived_path else None
+    der_mtime = os.path.getmtime(der_abs) if der_abs and os.path.exists(der_abs) else None
+    
+    cache_key = (cfg_abs, cfg_mtime, der_abs, der_mtime)
+    if cache_key in _ASSERT_FRESH_CACHE:
+        return _ASSERT_FRESH_CACHE[cache_key]
+
     cfg = load_yaml(config_path)
     if derived_path is None:
         derived_filename = cfg.get("paths", {}).get("derived_h1_path", "derived_h1.yaml")
         derived_path = os.path.join(os.path.dirname(config_path), derived_filename)
-        
+        der_abs = os.path.abspath(derived_path)
+        der_mtime = os.path.getmtime(der_abs) if os.path.exists(der_abs) else None
+        cache_key = (cfg_abs, cfg_mtime, der_abs, der_mtime)
+
     if not os.path.exists(derived_path):
-        # Auto-derive if missing
-        return derive_h1(config_path, derived_path)
+        res = derive_h1(config_path, derived_path)
+        _ASSERT_FRESH_CACHE[cache_key] = res
+        return res
         
     derived_data = load_yaml(derived_path)
     current_fp = compute_fingerprint(cfg)
     stored_fp = derived_data.get("fingerprint")
     
     if current_fp != stored_fp:
-        # Re-derive automatically
-        return derive_h1(config_path, derived_path)
+        res = derive_h1(config_path, derived_path)
+        _ASSERT_FRESH_CACHE[cache_key] = res
+        return res
         
+    _ASSERT_FRESH_CACHE[cache_key] = derived_data
     return derived_data
+
